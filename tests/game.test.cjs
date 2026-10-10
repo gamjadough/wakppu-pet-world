@@ -12,10 +12,11 @@ const fs = require('node:fs');
   const page = await context.newPage();
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
-  const url = pathToFileURL(path.resolve(__dirname, '../index.html')).href;
+  const preview = process.env.TEST_SCREENSHOT_DIR || path.resolve(__dirname, '../preview');
+  const url = process.env.TEST_GAME_URL || pathToFileURL(path.resolve(__dirname, '../index.html')).href;
   const read = expression => page.evaluate(expression);
   async function click(selector) {
-    const menu = selector.includes('data-equip') ? 'inventory-panel' : selector.includes('data-buy') ? 'shop-panel' : selector.includes('data-select') || selector === '#ball' ? 'hatch-panel' : null;
+    const menu = (selector.includes('data-equip') || selector.includes('data-release') || selector === '#recommend') ? 'inventory-panel' : selector.includes('data-buy') ? 'shop-panel' : selector.includes('data-select') || selector === '#ball' ? 'hatch-panel' : null;
     if (menu && !(await page.locator('#' + menu).isVisible())) await page.locator('.world-nav [data-menu="' + menu + '"]').click();
     await page.locator(selector).click();
   }
@@ -57,7 +58,11 @@ const fs = require('node:fs');
 
     await seed({ version: 1, gold: 350, pets: [0, 1, 2, 3], equipped: [], discovered: [], stock: [0, 0, 0, 0], selected: 0, cracks: 0 });
     for (let i = 0; i < 3; i++) await click(`[data-equip="${i}"]`);
-    assert.equal(await page.locator('[data-equip="3"]').isDisabled(), true);
+    await click('[data-equip="3"]');
+    assert.deepEqual((await snapshot()).equipped, [0, 1, 3]);
+    await page.reload();
+    await click('[data-equip="2"]');
+    assert.deepEqual((await snapshot()).equipped, [0, 1, 2]);
     assert.equal(await page.locator('#income').textContent(), '6.2 G/s');
     assert.equal(await page.locator('#power').textContent(), '클릭 위력 2');
     await click('[data-equip="1"]');
@@ -103,6 +108,50 @@ const fs = require('node:fs');
     assert.match(await page.locator('#click-label').textContent(), /1 \/ 12/);
     await page.reload();
     console.log('PASS: 손상 저장 복구, 잘못된 필드 검증, 초기화 취소/확인, 저장 차단');
+
+    await seed({ version: 1, gold: 10, pets: [0, 9, 8, 6, 4, 8], equipped: [], discovered: [0, 9, 8, 6, 4], stock: [0, 0, 0, 0], selected: 0, cracks: 0 });
+    page.once('dialog', d => d.dismiss());
+    await click('[data-release="0"]');
+    assert.equal((await snapshot()).pets.length, 6);
+    page.once('dialog', d => { assert.match(d.message(), /1.2 G/); d.accept(); });
+    await click('[data-release="0"]');
+    assert.equal((await snapshot()).gold, 11.2);
+    assert.deepEqual((await snapshot()).pets, [9, 8, 6, 4, 8]);
+    assert.ok((await snapshot()).discovered.includes(0));
+    await click('#recommend');
+    assert.deepEqual((await snapshot()).equipped, [1, 4, 0]);
+    assert.equal(await page.locator('#income').textContent(), '230 G/s');
+    // 장착 펫을 방생해도 다른 펫 번호와 월드 모습이 일치해야 합니다.
+    const beforeRelease = await read(() => state.gold);
+    page.once('dialog', d => d.accept());
+    await click('[data-release="1"]');
+    assert.deepEqual((await snapshot()).equipped, [3, 0]);
+    assert.equal(await page.locator('#income').textContent(), '145 G/s');
+    assert.ok((await snapshot()).gold >= beforeRelease + 85);
+    assert.equal(await page.locator('[data-world-pet="0"] .pet-name').textContent(), '우주뿌');
+    assert.equal(await page.locator('[data-world-pet="3"] .pet-name').textContent(), '태양뿌');
+    await page.reload();
+    assert.deepEqual((await snapshot()).pets, [9, 6, 4, 8]);
+    assert.deepEqual((await snapshot()).equipped, [3, 0]);
+    assert.ok((await snapshot()).discovered.includes(8));
+    await seed({ version: 1, gold: 0, pets: [], equipped: [], discovered: [], stock: [0, 0, 0, 0], selected: 0, cracks: 0 });
+    assert.equal(await page.locator('#recommend').isDisabled(), true);
+    // 실제 오디오 노드 생성 여부와 음소거 저장을 검사합니다.
+    await page.evaluate(() => { window.audioCalls = []; const original = sounds.play.bind(sounds); sounds.play = kind => { audioCalls.push(kind); original(kind); }; });
+    await click('#ball');
+    assert.deepEqual(await read(() => audioCalls), ['click']);
+    assert.equal(await read(() => sounds.context.state), 'running');
+    await page.evaluate(() => { for (let i = 0; i < 30; i++) document.getElementById('ball').click(); });
+    assert.equal(await read(() => audioCalls.filter(k => k === 'break').length), 1);
+    await page.waitForFunction(() => !document.getElementById('ball').disabled);
+    await click('#sound-toggle');
+    const soundCount = await read(() => audioCalls.length);
+    await click('#ball');
+    assert.equal(await read(() => audioCalls.length), soundCount);
+    await page.reload();
+    assert.equal((await snapshot()).soundEnabled, false);
+    assert.equal(await page.locator('#sound-toggle').textContent(), '소리 꺼짐');
+    console.log('PASS: 최근 장착 자동 교체/저장, 등급·수익 우선 추천, 방생 취소/보상/번호/도감/저장, 클릭·파괴 오디오/음소거');
 
     // 확률 경계를 고정해 모든 희귀도와 각 볼의 확률 합을 검증합니다.
     const oddsOK = await read(() => BALLS.every(b => Math.abs(b.odds.reduce((a, n) => a + n, 0) - 100) < 1e-9));
@@ -157,9 +206,9 @@ const fs = require('node:fs');
     assert.equal(await page.locator('#world-map').isVisible(), true);
     await page.keyboard.press('Escape');
     assert.equal(await page.locator('#menu-panel').isVisible(), false);
-    fs.mkdirSync(path.resolve(__dirname, '../preview'), { recursive: true });
+    fs.mkdirSync(preview, { recursive: true });
     console.log('PASS: 이전 저장 호환, 월드 장착/해제/재로드, 이동/경계/분리/휴식, 펫 정보, 메뉴 유지');
-    await page.screenshot({ path: path.resolve(__dirname, '../preview/desktop.png'), fullPage: true });
+    await page.screenshot({ path: path.join(preview, 'desktop.png'), fullPage: true });
     const fullMap = await page.locator('#world-map').boundingBox();
     for (const menu of ['shop-panel', 'hatch-panel', 'inventory-panel', 'codex-panel']) {
       await page.locator('.world-nav [data-menu="' + menu + '"]').click();
@@ -172,16 +221,16 @@ const fs = require('node:fs');
     assert.equal(await page.locator('#menu-panel').isVisible(), false);
     await page.locator('.world-nav [data-menu="shop-panel"]').click();
     assert.equal(await page.locator('#ball').isVisible(), false);
-    await page.screenshot({ path: path.resolve(__dirname, '../preview/shop-panel.png'), fullPage: true });
+    await page.screenshot({ path: path.join(preview, 'shop-panel.png'), fullPage: true });
     await page.locator('.world-nav [data-menu="hatch-panel"]').click();
     assert.equal(await page.locator('#shop').isVisible(), false);
     assert.equal(await page.locator('#ball').isVisible(), true);
-    await page.screenshot({ path: path.resolve(__dirname, '../preview/hatch-panel.png'), fullPage: true });
+    await page.screenshot({ path: path.join(preview, 'hatch-panel.png'), fullPage: true });
     await page.setViewportSize({ width: 390, height: 844 });
     await page.waitForTimeout(300);
     assert.equal(await read(inBounds), true);
     assert.equal(await read(() => document.documentElement.scrollWidth <= innerWidth), true);
-    await page.screenshot({ path: path.resolve(__dirname, '../preview/mobile.png'), fullPage: true });
+    await page.screenshot({ path: path.join(preview, 'mobile.png'), fullPage: true });
     await page.locator('.world-nav [data-menu="inventory-panel"]').click();
     assert.equal(await page.locator('#inventory-panel').isVisible(), true);
     assert.equal(await page.locator('#gold').isVisible(), true);
@@ -193,6 +242,20 @@ const fs = require('node:fs');
     await page.waitForTimeout(300);
     assert.equal(await read(inBounds), true);
     assert.equal(await read(() => document.documentElement.scrollWidth <= innerWidth), true);
+    await click('#ball');
+    // 결과 문구가 길어져도 모든 부화 조작이 팝업 안에 남아야 합니다.
+    await read(() => message('신화 · 태양뿌 부화! 85 G/s — 인벤토리에서 장착하세요.'));
+    for (const size of [{ width: 2560, height: 1600 }, { width: 1000, height: 700 }, { width: 390, height: 844 }, { width: 320, height: 568 }]) {
+      await page.setViewportSize(size);
+      await page.waitForTimeout(100);
+      assert.equal(await read(() => {
+        const panel = document.querySelector('.menu-content'), bounds = panel.getBoundingClientRect();
+        return panel.scrollHeight <= panel.clientHeight + 1 && ['result', 'queue', 'ball', 'progress'].every(id => {
+          const r = document.getElementById(id).getBoundingClientRect();
+          return r.top >= bounds.top && r.bottom <= bounds.bottom && r.height > 0;
+        });
+      }), true, '부화실 한 화면: ' + JSON.stringify(size));
+    }
     assert.deepEqual(errors, []);
     console.log('PASS: 4개 볼 × 5개 희귀도 확률 경계, 모바일 가로 넘침 없음, JS 오류 없음');
   } finally { await browser.close(); }

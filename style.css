@@ -26,3 +26,36 @@
 .icon-hatch:after{content:'';position:absolute;inset:4px 6px;border-left:2px solid #fff6e6;transform:rotate(20deg)}
 @media(max-width:700px){#menu-panel{width:calc(100% - 16px);max-height:94%;border-radius:18px}.world-nav button{font-size:9px}.menu-backdrop{border-radius:18px}}
 #menu-backdrop,#menu-backdrop:hover:not(:disabled){background:#28493638;border:0;box-shadow:none}
+/* 부화 결과와 볼 선택은 스크롤 없이 함께 표시합니다. */
+#menu-panel[data-page="hatch-panel"]{height:min(720px,94%)}
+#menu-panel[data-page="hatch-panel"] .menu-content{flex:1;overflow:hidden;padding:12px;display:flex}
+#hatch-panel:not([hidden]){width:100%;min-height:0;display:flex}
+#hatch-panel .hatch-room{width:100%;min-height:0;display:flex;flex-direction:column;gap:8px;padding:14px}
+.hatch-room>*{flex-shrink:0}
+#hatch-panel h2{margin:0;font-size:18px}
+#hatch-panel .result{min-height:46px;padding:8px;line-height:1.4}
+#hatch-panel .ball-stage{flex:1;min-height:60px;height:auto;container-type:size}
+#hatch-panel .ball{width:min(170px,80cqh);height:min(170px,80cqh)}
+#hatch-panel .ball-band{top:46%;height:12%}
+#hatch-panel .ball-core{top:40%;left:40%;width:20%;height:20%;border-width:4px}
+#hatch-panel .ball-shine{top:12%;left:18%;width:32%;height:14%}
+#hatch-panel .orbit{width:min(195px,95cqh);height:min(195px,95cqh)}
+#hatch-panel progress{margin:0}
+#hatch-panel .queue-head{margin:0}
+#hatch-panel .queue{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}
+#hatch-panel .queue button{padding:6px 3px;font-size:11px}
+#sound-toggle{padding:3px 8px;font-size:11px}
+.inventory-tools{display:flex;align-items:center;gap:12px;margin:14px 0 8px}
+#inventory-notice{font-size:12px;min-height:20px}
+.pet-card .release{display:block;width:100%;margin-top:6px;font-size:11px;color:#a06548}
+@media(max-height:700px){
+ #menu-panel[data-page="hatch-panel"] .menu-heading{padding:6px 12px}
+ #menu-panel[data-page="hatch-panel"] .menu-heading .eyebrow{display:none}
+ #menu-panel[data-page="hatch-panel"] .menu-content{padding:6px}
+ #hatch-panel .hatch-room{padding:8px;gap:4px}
+ #hatch-panel .result{min-height:30px;padding:4px;font-size:11px}
+ #hatch-panel h2{font-size:14px}
+ #hatch-panel .queue button{font-size:10px;padding:3px}
+ #hatch-panel .queue-head h3{font-size:11px}
+ #hatch-panel .ball-stage{min-height:35px}
+}
