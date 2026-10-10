@@ -243,9 +243,9 @@ const fs = require('node:fs');
     assert.equal(await read(inBounds), true);
     assert.equal(await read(() => document.documentElement.scrollWidth <= innerWidth), true);
     await click('#ball');
-    // 결과 문구가 길어져도 모든 부화 조작이 팝업 안에 남아야 합니다.
+    // 큰 화면은 한 화면에 유지하고, 작은 모바일은 조작 크기를 유지하며 스크롤합니다.
     await read(() => message('신화 · 태양뿌 부화! 85 G/s — 인벤토리에서 장착하세요.'));
-    for (const size of [{ width: 2560, height: 1600 }, { width: 1000, height: 700 }, { width: 390, height: 844 }, { width: 320, height: 568 }]) {
+    for (const size of [{ width: 2560, height: 1600 }, { width: 1000, height: 700 }, { width: 390, height: 844 }]) {
       await page.setViewportSize(size);
       await page.waitForTimeout(100);
       assert.equal(await read(() => {
@@ -255,6 +255,14 @@ const fs = require('node:fs');
           return r.top >= bounds.top && r.bottom <= bounds.bottom && r.height > 0;
         });
       }), true, '부화실 한 화면: ' + JSON.stringify(size));
+    }
+    await page.setViewportSize({ width: 320, height: 568 });
+    for (const id of ['result', 'queue', 'ball', 'progress']) {
+      await page.locator('#' + id).scrollIntoViewIfNeeded();
+      assert.equal(await page.locator('#' + id).evaluate(el => {
+        const r = el.getBoundingClientRect(), bounds = document.querySelector('.menu-content').getBoundingClientRect();
+        return r.top >= bounds.top - 1 && r.bottom <= bounds.bottom + 1 && r.height > 0;
+      }), true, '작은 화면 스크롤 도달: ' + id);
     }
     assert.deepEqual(errors, []);
     console.log('PASS: 4개 볼 × 5개 희귀도 확률 경계, 모바일 가로 넘침 없음, JS 오류 없음');

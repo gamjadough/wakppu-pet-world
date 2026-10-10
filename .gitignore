@@ -3,3 +3,7 @@ node_modules/
 *.log
 .DS_Store
 Thumbs.db
+preview/before-*.png
+preview/mobile-*.png
+preview/hatch-[0-9]*.png
+preview/deployed/
