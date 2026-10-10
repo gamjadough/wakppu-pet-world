@@ -190,13 +190,15 @@ window.addEventListener("pagehide", save);
 document.addEventListener("visibilitychange", () => { if (document.hidden) save(); });
 
 // 메뉴 열고 닫기는 표시만 바꾸며 게임 진행과 저장값은 유지합니다.
-const menuTitles = { "shop-panel": "왁뿌볼 상점", "inventory-panel": "펫 인벤토리", "codex-panel": "펫 도감" };
+const menuTitles = { "shop-panel": "왁뿌볼 상점", "hatch-panel": "왁뿌볼 부화실", "inventory-panel": "펫 인벤토리", "codex-panel": "펫 도감" };
 let activeMenu = null;
 let menuTrigger = null;
 function openMenu(id, trigger) {
   if (!menuTitles[id]) return;
-  activeMenu = id; menuTrigger = trigger || menuTrigger;
+  activeMenu = id;
+  menuTrigger = document.querySelector(`.world-nav [data-menu="${id}"]`) || trigger || menuTrigger;
   $("menu-panel").hidden = false;
+  $("menu-backdrop").hidden = false;
   $("menu-title").textContent = menuTitles[id];
   document.querySelector(".menu-content").scrollTop = 0;
   document.querySelectorAll(".menu-page").forEach(page => { page.hidden = page.id !== id; });
@@ -205,6 +207,7 @@ function openMenu(id, trigger) {
 }
 function closeMenu() {
   activeMenu = null; $("menu-panel").hidden = true;
+  $("menu-backdrop").hidden = true;
   document.querySelectorAll(".world-nav [data-menu]").forEach(button => button.setAttribute("aria-expanded", "false"));
   menuTrigger?.focus({ preventScroll: true });
 }
@@ -212,6 +215,7 @@ document.querySelectorAll("[data-menu]").forEach(button => button.addEventListen
   if (activeMenu === button.dataset.menu) closeMenu(); else openMenu(button.dataset.menu, button);
 }));
 $("close-menu").addEventListener("click", closeMenu);
+$("menu-backdrop").addEventListener("click", closeMenu);
 document.addEventListener("keydown", event => {
   if (event.key === "Escape") { if (activeMenu) closeMenu(); else $("pet-info").hidden = true; }
 });

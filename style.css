@@ -17,3 +17,12 @@
 /* 일반 메뉴 버튼의 밝은 배경이 부화 볼의 재질을 덮어쓰지 않게 합니다. */
 .world-game .ball,.world-game .ball:hover:not(:disabled){background:radial-gradient(circle at 32% 22%,#9fffe3 0,#40bd9d 34%,#177060 65%,#0b333c 100%);border:2px solid #b8ffe766;box-shadow:inset -20px -22px 35px #071b3b77,0 0 35px #4ae5ba22,0 12px 20px #19472d33}
 .world-game .world-nav button[aria-expanded=true]:hover:not(:disabled),.world-game .world-empty button:hover:not(:disabled){background:#507f57;color:#fff8e6}
+/* 모든 메뉴는 월드의 크기를 유지한 채 중앙 팝업으로 표시합니다. */
+#menu-panel{position:absolute;z-index:1500;inset:auto;left:50%;top:50%;transform:translate(-50%,-50%);width:min(600px,calc(100% - 24px));max-width:none;max-height:94%;min-height:0;border-radius:24px;box-shadow:0 14px 50px #294b3940}
+#menu-panel .menu-heading{flex-shrink:0}
+.menu-backdrop,.world-game .menu-backdrop:hover:not(:disabled){position:absolute;inset:0;z-index:1400;background:#28493638;border:0;border-radius:24px;box-shadow:none;padding:0;cursor:default}
+#hatch-panel .hatch-room{margin-top:0}
+.icon-hatch{border-radius:48% 48% 40% 40%;background:#b8a6e3;border:2px solid #8470ac}
+.icon-hatch:after{content:'';position:absolute;inset:4px 6px;border-left:2px solid #fff6e6;transform:rotate(20deg)}
+@media(max-width:700px){#menu-panel{width:calc(100% - 16px);max-height:94%;border-radius:18px}.world-nav button{font-size:9px}.menu-backdrop{border-radius:18px}}
+#menu-backdrop,#menu-backdrop:hover:not(:disabled){background:#28493638;border:0;box-shadow:none}

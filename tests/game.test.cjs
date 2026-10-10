@@ -15,7 +15,7 @@ const fs = require('node:fs');
   const url = pathToFileURL(path.resolve(__dirname, '../index.html')).href;
   const read = expression => page.evaluate(expression);
   async function click(selector) {
-    const menu = selector.includes('data-equip') ? 'inventory-panel' : selector.includes('data-buy') || selector.includes('data-select') || selector === '#ball' ? 'shop-panel' : null;
+    const menu = selector.includes('data-equip') ? 'inventory-panel' : selector.includes('data-buy') ? 'shop-panel' : selector.includes('data-select') || selector === '#ball' ? 'hatch-panel' : null;
     if (menu && !(await page.locator('#' + menu).isVisible())) await page.locator('.world-nav [data-menu="' + menu + '"]').click();
     await page.locator(selector).click();
   }
@@ -160,8 +160,23 @@ const fs = require('node:fs');
     fs.mkdirSync(path.resolve(__dirname, '../preview'), { recursive: true });
     console.log('PASS: 이전 저장 호환, 월드 장착/해제/재로드, 이동/경계/분리/휴식, 펫 정보, 메뉴 유지');
     await page.screenshot({ path: path.resolve(__dirname, '../preview/desktop.png'), fullPage: true });
+    const fullMap = await page.locator('#world-map').boundingBox();
+    for (const menu of ['shop-panel', 'hatch-panel', 'inventory-panel', 'codex-panel']) {
+      await page.locator('.world-nav [data-menu="' + menu + '"]').click();
+      assert.deepEqual(await page.locator('#world-map').boundingBox(), fullMap);
+      assert.equal(await page.locator('#' + menu).isVisible(), true);
+      assert.equal(await page.locator('#menu-backdrop').isVisible(), true);
+      assert.match(await read(() => getComputedStyle(document.getElementById('menu-backdrop')).backgroundColor), /rgba\(/);
+    }
+    await page.locator('#menu-backdrop').click({ position: { x: 10, y: 10 } });
+    assert.equal(await page.locator('#menu-panel').isVisible(), false);
     await page.locator('.world-nav [data-menu="shop-panel"]').click();
+    assert.equal(await page.locator('#ball').isVisible(), false);
     await page.screenshot({ path: path.resolve(__dirname, '../preview/shop-panel.png'), fullPage: true });
+    await page.locator('.world-nav [data-menu="hatch-panel"]').click();
+    assert.equal(await page.locator('#shop').isVisible(), false);
+    assert.equal(await page.locator('#ball').isVisible(), true);
+    await page.screenshot({ path: path.resolve(__dirname, '../preview/hatch-panel.png'), fullPage: true });
     await page.setViewportSize({ width: 390, height: 844 });
     await page.waitForTimeout(300);
     assert.equal(await read(inBounds), true);
