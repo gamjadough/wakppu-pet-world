@@ -65,6 +65,7 @@ function save() {
 function message(text) { $("result").textContent = text; }
 function renderStats() {
   $("gold").textContent = `${format(state.gold)} G`;
+  $("shop-gold").textContent = `${format(state.gold)} G`;
   $("income").textContent = `${format(income())} G/s`;
   $("price").textContent = BALLS[state.selected].price ? `${format(BALLS[state.selected].price)} G` : "무료";
   $("discovered").textContent = `${state.discovered.length} / ${PETS.length}`;
@@ -93,6 +94,13 @@ function renderPets() {
   $("pet-count").textContent = `${state.pets.length}마리`;
   $("inventory").innerHTML = state.pets.length ? state.pets.map((id, i) => petCard(id, i)).join("") : '<p class="empty">아직 펫이 없어요. 첫 왁뿌볼을 깨 보세요!</p>';
   $("codex").innerHTML = PETS.map((_, id) => petCard(id, id, true)).join("");
+  world.sync(state.equipped.map(index => {
+    const id = state.pets[index], pet = PETS[id];
+    return { index, id, name: pet.name, color: COLORS[pet.rarity] };
+  }));
+  if (selectedWorldPet !== null && !state.equipped.includes(selectedWorldPet)) {
+    selectedWorldPet = null; $("pet-info").hidden = true;
+  }
 }
 function render() { renderStats(); renderBall(); renderPets(); }
 
@@ -180,4 +188,43 @@ setInterval(() => {
 setInterval(save, 2000);
 window.addEventListener("pagehide", save);
 document.addEventListener("visibilitychange", () => { if (document.hidden) save(); });
+
+// 메뉴 열고 닫기는 표시만 바꾸며 게임 진행과 저장값은 유지합니다.
+const menuTitles = { "shop-panel": "왁뿌볼 상점", "inventory-panel": "펫 인벤토리", "codex-panel": "펫 도감" };
+let activeMenu = null;
+let menuTrigger = null;
+function openMenu(id, trigger) {
+  if (!menuTitles[id]) return;
+  activeMenu = id; menuTrigger = trigger || menuTrigger;
+  $("menu-panel").hidden = false;
+  $("menu-title").textContent = menuTitles[id];
+  document.querySelector(".menu-content").scrollTop = 0;
+  document.querySelectorAll(".menu-page").forEach(page => { page.hidden = page.id !== id; });
+  document.querySelectorAll(".world-nav [data-menu]").forEach(button => button.setAttribute("aria-expanded", String(button.dataset.menu === id)));
+  $("close-menu").focus({ preventScroll: true });
+}
+function closeMenu() {
+  activeMenu = null; $("menu-panel").hidden = true;
+  document.querySelectorAll(".world-nav [data-menu]").forEach(button => button.setAttribute("aria-expanded", "false"));
+  menuTrigger?.focus({ preventScroll: true });
+}
+document.querySelectorAll("[data-menu]").forEach(button => button.addEventListener("click", () => {
+  if (activeMenu === button.dataset.menu) closeMenu(); else openMenu(button.dataset.menu, button);
+}));
+$("close-menu").addEventListener("click", closeMenu);
+document.addEventListener("keydown", event => {
+  if (event.key === "Escape") { if (activeMenu) closeMenu(); else $("pet-info").hidden = true; }
+});
+let selectedWorldPet = null;
+const world = new PetWorld($("world-map"), $("world-pets"), index => {
+  if (!state.equipped.includes(index)) return;
+  selectedWorldPet = index;
+  const pet = PETS[state.pets[index]];
+  $("info-rarity").textContent = RARITIES[pet.rarity];
+  $("info-name").textContent = pet.name;
+  $("info-rate").textContent = `${format(pet.rate + pet.bonus)} G/s`;
+  $("info-ability").textContent = pet.ability;
+  $("pet-info").hidden = false;
+});
+$("close-pet-info").addEventListener("click", () => { selectedWorldPet = null; $("pet-info").hidden = true; });
 render(); save();
