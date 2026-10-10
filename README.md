@@ -2,6 +2,8 @@
 
 HTML, CSS, 순수 JavaScript로 만든 로컬 싱글플레이 부화 게임입니다. 게임을 실행하는 데 패키지 설치, 인터넷, 서버, 계정이 필요하지 않습니다.
 
+**[웹에서 플레이](https://gamjadough.github.io/wakppu-pet-world/)** · **[GitHub 저장소](https://github.com/gamjadough/wakppu-pet-world)**
+
 ## 실행 방법
 
 1. 이 폴더의 `index.html`을 Chrome 또는 Edge로 열어 주세요. 파일을 더블클릭하거나 브라우저 창에 끌어 놓으면 됩니다.
