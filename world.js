@@ -37,6 +37,11 @@ class PetWorld {
     document.getElementById("world-empty").hidden = pets.length > 0;
     document.getElementById("world-count").textContent = `산책 중 ${pets.length} / 3`;
   }
+  // 방생으로 인벤토리 번호가 바뀌면 캐릭터를 다시 연결합니다.
+  clear() {
+    for (const actor of this.actors.values()) actor.element.remove();
+    this.actors.clear();
+  }
   resize() {
     const width = this.map.clientWidth, height = this.map.clientHeight;
     const scaleX = width / Math.max(1, this.width), scaleY = height / Math.max(1, this.height);

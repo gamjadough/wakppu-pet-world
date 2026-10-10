@@ -25,7 +25,7 @@ const PETS = [
 ];
 const $ = id => document.getElementById(id);
 const format = n => new Intl.NumberFormat("ko-KR", { maximumFractionDigits: 1, notation: n >= 1000000 ? "compact" : "standard" }).format(n);
-const defaults = () => ({ version: 1, gold: 0, pets: [], equipped: [], discovered: [], stock: [0, 0, 0, 0], selected: 0, cracks: 0 });
+const defaults = () => ({ version: 1, gold: 0, pets: [], equipped: [], discovered: [], stock: [0, 0, 0, 0], selected: 0, cracks: 0, soundEnabled: true });
 const integer = (v, max) => Number.isInteger(v) && v >= 0 && v <= max;
 let storageOK = true;
 
@@ -37,6 +37,7 @@ function load() {
     if (!raw) return clean;
     const data = JSON.parse(raw);
     if (!data || data.version !== 1) return clean;
+    if (typeof data.soundEnabled === "boolean") clean.soundEnabled = data.soundEnabled;
     if (Number.isFinite(data.gold) && data.gold >= 0) clean.gold = Math.min(data.gold, 1e15);
     if (Array.isArray(data.pets)) clean.pets = data.pets.filter(p => integer(p, PETS.length - 1)).slice(0, 10000);
     if (Array.isArray(data.equipped)) clean.equipped = [...new Set(data.equipped)].filter(i => integer(i, clean.pets.length - 1)).slice(0, SLOT_LIMIT);
@@ -48,6 +49,7 @@ function load() {
     return clean;
   } catch { return clean; }
 }
+const sounds = new GameSounds();
 let state = load();
 let hatching = false;
 let hatchTimer;
@@ -57,6 +59,13 @@ let lastTick = performance.now();
 function equippedPets() { return state.equipped.map(index => PETS[state.pets[index]]); }
 function income() { return equippedPets().reduce((sum, p) => sum + p.rate + p.bonus, 0); }
 function clickPower() { return 1 + equippedPets().reduce((sum, p) => sum + p.power, 0); }
+// 장착을 바꾸기 전에 이전 구성으로 벌었던 골드를 먼저 정산합니다.
+function accrueGold() {
+  const now = performance.now();
+  const elapsed = Math.min(60, Math.max(0, (now - lastTick) / 1000));
+  lastTick = now;
+  state.gold = Math.min(1e15, state.gold + income() * elapsed);
+}
 function save() {
   try { localStorage.setItem(SAVE_KEY, JSON.stringify(state)); storageOK = true; }
   catch { storageOK = false; }
@@ -64,6 +73,8 @@ function save() {
 }
 function message(text) { $("result").textContent = text; }
 function renderStats() {
+  $("sound-toggle").textContent = state.soundEnabled ? "소리 켜짐" : "소리 꺼짐";
+  $("sound-toggle").setAttribute("aria-pressed", String(state.soundEnabled));
   $("gold").textContent = `${format(state.gold)} G`;
   $("shop-gold").textContent = `${format(state.gold)} G`;
   $("income").textContent = `${format(income())} G/s`;
@@ -87,9 +98,10 @@ function petCard(petId, index, codex = false) {
   const p = PETS[petId];
   const known = !codex || state.discovered.includes(petId);
   const equipped = !codex && state.equipped.includes(index);
-  return `<article class="pet-card ${equipped ? "equipped" : ""} ${known ? "" : "unknown"}" style="--rarity:${COLORS[p.rarity]}"><div class="pet-art" aria-hidden="true"></div><span class="rarity">${RARITIES[p.rarity]}</span><h3>${known ? p.name : "???"}</h3><p class="rate">${known ? `${format(p.rate + p.bonus)} G/s` : "미발견"}</p><p>${known ? p.ability : "부화하여 비밀을 발견하세요"}</p>${codex ? "" : `<button data-equip="${index}" ${!equipped && state.equipped.length >= SLOT_LIMIT ? "disabled" : ""}>${equipped ? "장착 해제" : "장착하기"}</button>`}</article>`;
+  return `<article class="pet-card ${equipped ? "equipped" : ""} ${known ? "" : "unknown"}" style="--rarity:${COLORS[p.rarity]}"><div class="pet-art" aria-hidden="true"></div><span class="rarity">${RARITIES[p.rarity]}</span><h3>${known ? p.name : "???"}</h3><p class="rate">${known ? `${format(p.rate + p.bonus)} G/s` : "미발견"}</p><p>${known ? p.ability : "부화하여 비밀을 발견하세요"}</p>${codex ? "" : `<button data-equip="${index}" >${equipped ? "장착 해제" : state.equipped.length >= SLOT_LIMIT ? "교체 장착" : "장착하기"}</button><button data-release="${index}" class="release">방생 · +${format(p.rate + p.bonus)} G</button>`}</article>`;
 }
 function renderPets() {
+  $("recommend").disabled = state.pets.length === 0;
   $("slots").textContent = `장착 ${state.equipped.length} / ${SLOT_LIMIT}`;
   $("pet-count").textContent = `${state.pets.length}마리`;
   $("inventory").innerHTML = state.pets.length ? state.pets.map((id, i) => petCard(id, i)).join("") : '<p class="empty">아직 펫이 없어요. 첫 왁뿌볼을 깨 보세요!</p>';
@@ -114,6 +126,7 @@ function rollPet(tier) {
 function hatch() {
   // 잠금을 먼저 걸고 보상과 소모를 한 번에 저장합니다. 애니메이션은 화면 효과입니다.
   hatching = true;
+  if (state.soundEnabled) sounds.play("break");
   const petId = rollPet(state.selected);
   const p = PETS[petId];
   if (state.selected > 0) state.stock[state.selected]--;
@@ -138,6 +151,7 @@ function hatch() {
 }
 $("ball").addEventListener("click", () => {
   if (hatching || state.pets.length >= 10000) { if (!hatching) message("인벤토리 한도 10,000마리에 도달했어요."); return; }
+  if (state.soundEnabled) sounds.play("click");
   state.cracks = Math.min(BALLS[state.selected].clicks, state.cracks + clickPower());
   $("ball").classList.remove("hit");
   void $("ball").offsetWidth; // 같은 애니메이션을 다시 시작합니다.
@@ -163,14 +177,42 @@ $("shop").addEventListener("click", e => {
   save(); renderStats(); renderBall(); message(`${BALLS[tier].name} 구매 완료! 보유 왁뿌볼에서 선택하세요.`);
 });
 $("inventory").addEventListener("click", e => {
-  const button = e.target.closest("[data-equip]");
+  const button = e.target.closest("[data-equip], [data-release]");
   if (!button) return;
-  const index = Number(button.dataset.equip);
+  const release = button.hasAttribute("data-release");
+  const index = Number(release ? button.dataset.release : button.dataset.equip);
   if (!integer(index, state.pets.length - 1)) return;
-  if (state.equipped.includes(index)) state.equipped = state.equipped.filter(i => i !== index);
-  else if (state.equipped.length < SLOT_LIMIT) state.equipped.push(index);
-  else return;
+  const pet = PETS[state.pets[index]];
+  if (release && !confirm(`${pet.name}을 방생하고 ${format(pet.rate + pet.bonus)} G를 받을까요? 인벤토리에서 삭제되며 되돌릴 수 없습니다. 도감 기록은 유지됩니다.`)) return;
+  accrueGold();
+  if (release) {
+    state.gold = Math.min(1e15, state.gold + pet.rate + pet.bonus);
+    state.pets.splice(index, 1);
+    // 삭제된 번호 뒤의 펫 번호를 한 칸 당깁니다. 발견 기록은 지우지 않습니다.
+    state.equipped = state.equipped.filter(i => i !== index).map(i => i > index ? i - 1 : i);
+    world.clear(); selectedWorldPet = null; $("pet-info").hidden = true;
+    $("inventory-notice").textContent = `${pet.name} 방생 완료 · +${format(pet.rate + pet.bonus)} G`;
+  } else if (state.equipped.includes(index)) state.equipped = state.equipped.filter(i => i !== index);
+  else {
+    // 배열 마지막이 가장 최근에 장착한 펫입니다. 기존 저장 순서도 그대로 사용합니다.
+    if (state.equipped.length >= SLOT_LIMIT) state.equipped.pop();
+    state.equipped.push(index);
+    $("inventory-notice").textContent = `${pet.name} 장착 완료`;
+  }
   save(); render();
+});
+$("recommend").addEventListener("click", () => {
+  accrueGold();
+  state.equipped = state.pets.map((id, index) => ({ pet: PETS[id], index }))
+    .sort((a, b) => b.pet.rarity - a.pet.rarity || (b.pet.rate + b.pet.bonus) - (a.pet.rate + a.pet.bonus) || a.index - b.index)
+    .slice(0, SLOT_LIMIT).map(item => item.index);
+  $("inventory-notice").textContent = "높은 등급 우선 · 같은 등급은 높은 초당 수익 순으로 장착했어요.";
+  save(); render();
+});
+$("sound-toggle").addEventListener("click", () => {
+  state.soundEnabled = !state.soundEnabled;
+  if (state.soundEnabled) sounds.play("click");
+  save(); renderStats();
 });
 $("reset").addEventListener("click", () => {
   if (!confirm("골드, 펫, 도감, 구매 기록을 모두 초기화할까요? 이 작업은 되돌릴 수 없습니다.")) return;
@@ -180,9 +222,7 @@ $("reset").addEventListener("click", () => {
 });
 // 실제 경과 시간으로 생산합니다. 백그라운드 수익은 틱당 최대 60초이며 오프라인 수익은 없습니다.
 setInterval(() => {
-  const now = performance.now();
-  const elapsed = Math.min(60, Math.max(0, (now - lastTick) / 1000)); lastTick = now;
-  state.gold = Math.min(1e15, state.gold + income() * elapsed);
+  accrueGold();
   renderStats();
 }, 250);
 setInterval(save, 2000);
@@ -196,6 +236,7 @@ let menuTrigger = null;
 function openMenu(id, trigger) {
   if (!menuTitles[id]) return;
   activeMenu = id;
+  $("menu-panel").dataset.page = id;
   menuTrigger = document.querySelector(`.world-nav [data-menu="${id}"]`) || trigger || menuTrigger;
   $("menu-panel").hidden = false;
   $("menu-backdrop").hidden = false;
