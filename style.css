@@ -171,3 +171,6 @@
 #account-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 #account-actions[hidden] { display: none; }
 @media (max-width: 600px) { .account-toggle { top: 76px; right: 12px; } .account-panel { top: 122px; right: 12px; } }
+
+/* 관리 메뉴를 사용하는 동안 계정 버튼이 닫기 조작을 가리지 않게 합니다. */
+.world-game:has(#menu-panel:not([hidden])) .account-toggle{visibility:hidden}
