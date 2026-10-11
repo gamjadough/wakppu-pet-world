@@ -107,3 +107,10 @@
 - 기존 구매·부화·장착·추천·방생·도감·사운드·모바일 회귀 검사 통과, JavaScript 오류 없음
 
 검사에서는 펫 위치를 조절해 만남을 재현했습니다. 장시간 무작위 산책의 싸움 발생 빈도와 실제 모바일 기기는 검사하지 않았습니다.
+# 계정 서버 연결 검사 · 2026-10-11
+
+- `tests/game.test.cjs`: 기존 게임 회귀 검사 통과, JavaScript 오류 없음.
+- `tests/account.test.cjs`: 실제 Chrome과 모의 Supabase 응답으로 게스트 기록 연결, 서버 저장, 별도 브라우저 복원, 저장 버전 충돌 차단·재로드, 저장 실패 시 계정 백업, 재시도, 로그아웃 시 게스트 분리 확인.
+- `game.js`, `account.js`: Node 구문 검사 통과.
+- 실제 Supabase 프로젝트 `ojjcqjgqddaunhnhbflj`에 `schema.sql` 적용 성공. `verify.sql`로 본인 저장/조회, 버전 충돌 차단, 다른 사용자 기록 격리, 직접 쓰기/비로그인 접근 차단 통과. 테스트 데이터는 트랜잭션 롤백으로 남기지 않았습니다.
+- 실제 공개 API: `/auth/v1/settings` 200, 비로그인 `/rest/v1/game_saves` 401(권한 차단) 확인. Google OAuth는 별도 클라이언트 설정 후 실제 로그인 검증이 필요합니다.

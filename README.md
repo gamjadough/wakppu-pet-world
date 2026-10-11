@@ -1,5 +1,7 @@
 # 왁뿌볼 웹 게임 v0.1 · 펫 월드
 
+계정 클라우드 저장 코드가 추가되었습니다. 서버 설정 전에는 기존 게스트 게임으로 동작합니다. 실제 활성화와 Google 로그인 설정은 [SERVER_SETUP.md](SERVER_SETUP.md)를 참고하세요. 아래의 브라우저 저장 설명은 게스트 모드 기준입니다. 공식 랭킹은 아직 포함하지 않습니다.
+
 HTML, CSS, 순수 JavaScript로 만든 로컬 싱글플레이 부화 게임입니다. 게임을 실행하는 데 패키지 설치, 인터넷, 서버, 계정이 필요하지 않습니다.
 
 **[웹에서 플레이](https://gamjadough.github.io/wakppu-pet-world/)** · **[GitHub 저장소](https://github.com/gamjadough/wakppu-pet-world)**
