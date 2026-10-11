@@ -2,7 +2,7 @@
 
 현재 코드에는 Google 로그인과 Supabase 계정 저장이 구현되어 있습니다. GitHub Pages 주소는 유지합니다.
 
-2026-10-11: `wakppu-pet-world` 프로젝트 연결 설정과 저장 스키마 적용 완료. 실제 DB 권한·저장 충돌 검사를 통과했습니다. Site URL과 Redirect URL도 실제 게임 주소로 설정했습니다. **Google OAuth 클라이언트 생성과 제공자 활성화는 아직 필요합니다.**
+2026-10-11: `wakppu-pet-world` 프로젝트 연결 설정과 저장 스키마 적용 완료. 실제 DB 권한·저장 충돌 검사를 통과했습니다. Site URL과 Redirect URL도 실제 게임 주소로 설정했습니다. Google OAuth 클라이언트 생성과 제공자 활성화 완료. 배포된 게임에서 실제 Google 로그인, 첫 펫 서버 저장, 새로고침 후 서버 기록 복원을 확인했습니다. 실제 서로 다른 브라우저 간 로그인은 아직 별도 검증이 필요합니다.
 
 현재 프로젝트 콜백 URL: `https://ojjcqjgqddaunhnhbflj.supabase.co/auth/v1/callback`
 
