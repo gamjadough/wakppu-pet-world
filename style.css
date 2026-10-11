@@ -160,6 +160,7 @@
 @keyframes pet-quarrel{25%{margin-left:-4px;margin-top:-2px}75%{margin-left:4px;margin-top:1px}}
 @media(max-width:700px){.world-game .fight-status{font-size:10px;padding:8px;bottom:32px}}
 @media(prefers-reduced-motion:reduce){.fighting .pet-sprite{animation:none}}
+
 .account-toggle { position: fixed; right: 16px; top: 88px; z-index: 50; padding: 8px 16px; border-radius: 14px; box-shadow: 0 4px 16px #20372e20; }
 .account-panel { position: fixed; top: 136px; right: 16px; width: min(360px, calc(100vw - 32px)); max-height: calc(100dvh - 220px); overflow: auto; padding: 20px; z-index: 60; background: #fffdf4; color: #294536; border: 1px solid #ceddc4; border-radius: 20px; box-shadow: 0 12px 40px #20372e30; }
 .account-panel[hidden] { display: none; }
@@ -170,3 +171,6 @@
 #account-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 #account-actions[hidden] { display: none; }
 @media (max-width: 600px) { .account-toggle { top: 76px; right: 12px; } .account-panel { top: 122px; right: 12px; } }
+
+/* 관리 메뉴를 사용하는 동안 계정 버튼이 닫기 조작을 가리지 않게 합니다. */
+.world-game:has(#menu-panel:not([hidden])) .account-toggle{visibility:hidden}

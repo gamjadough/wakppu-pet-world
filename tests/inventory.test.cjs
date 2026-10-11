@@ -32,7 +32,7 @@ const { pathToFileURL } = require('node:url');
       assert.deepEqual(await order(), [1, 3, 6, 5, 2, 0, 4]);
       await page.locator('#inventory-sort').selectOption('rarity-desc');
       assert.deepEqual(await order(), [0, 4, 2, 5, 1, 3, 6]);
-      assert.deepEqual((await snapshot()).pets, [8, 0, 6, 1, 9, 2, 0], '表示順で保存配列を変更しない');
+      assert.deepEqual((await snapshot()).pets, [8, 0, 6, 1, 9, 2, 0], '표시 정렬은 저장 배열을 변경하지 않음');
       await page.locator('[data-pet-select="6"]').check();
       await page.locator('#inventory-sort').selectOption('obtained');
       assert.deepEqual(await selected(), [6], '정렬 후 중복 펫의 선택 유지');
@@ -100,6 +100,16 @@ const { pathToFileURL } = require('node:url');
           assert.ok((await page.locator(selector).first().boundingBox()).height >= 44, '모바일 터치 크기: ' + selector);
         }
       }
+      // 일괄 방생으로 번호가 바뀌어도 장착 펫의 진행 중인 싸움을 유지합니다.
+      await seed([0, 1, 6, 8, 9], [4, 2]);
+      await page.evaluate(() => { state.fights = []; startFight(4, 2); state.peaceUntil[3] = Date.now() + 10000; save(); });
+      await page.locator('#inventory-rarity').selectOption('0');
+      await page.locator('#select-visible').tap();
+      page.once('dialog', d => d.accept());
+      await page.locator('#release-selected').tap();
+      assert.deepEqual((await snapshot()).equipped, [2, 0]);
+      assert.deepEqual((await snapshot()).fights, [[2, 0]], '일괄 방생 후 싸움 번호 유지');
+      assert.ok((await snapshot()).peaceUntil[1] > Date.now(), '일괄 방생 후 평화 번호 유지');
       await seed([], []);
       assert.equal(await page.locator('#release-selected').isDisabled(), true);
       assert.equal(await page.locator('#select-visible').isDisabled(), true);
