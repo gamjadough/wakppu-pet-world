@@ -98,13 +98,38 @@ function petCard(petId, index, codex = false) {
   const p = PETS[petId];
   const known = !codex || state.discovered.includes(petId);
   const equipped = !codex && state.equipped.includes(index);
-  return `<article class="pet-card ${equipped ? "equipped" : ""} ${known ? "" : "unknown"}" style="--rarity:${COLORS[p.rarity]}"><div class="pet-art" aria-hidden="true"></div><span class="rarity">${RARITIES[p.rarity]}</span><h3>${known ? p.name : "???"}</h3><p class="rate">${known ? `${format(p.rate + p.bonus)} G/s` : "미발견"}</p><p>${known ? p.ability : "부화하여 비밀을 발견하세요"}</p>${codex ? "" : `<button data-equip="${index}" >${equipped ? "장착 해제" : state.equipped.length >= SLOT_LIMIT ? "교체 장착" : "장착하기"}</button><button data-release="${index}" class="release">방생 · +${format(p.rate + p.bonus)} G</button>`}</article>`;
+  return `<article class="pet-card ${equipped ? "equipped" : ""} ${known ? "" : "unknown"}" style="--rarity:${COLORS[p.rarity]}">${codex ? "" : `<label class="pet-selection"><input type="checkbox" data-pet-select="${index}" aria-label="${p.name} ${index + 1}번 방생 선택" ${selectedPets.has(index) ? "checked" : ""} ${equipped ? "disabled" : ""}>${equipped ? "장착 중" : "방생 선택"}</label>`}<div class="pet-art" aria-hidden="true"></div><span class="rarity">${RARITIES[p.rarity]}</span><h3>${known ? p.name : "???"}</h3><p class="rate">${known ? `${format(p.rate + p.bonus)} G/s` : "미발견"}</p><p>${known ? p.ability : "부화하여 비밀을 발견하세요"}</p>${codex ? "" : `<button data-equip="${index}" >${equipped ? "장착 해제" : state.equipped.length >= SLOT_LIMIT ? "교체 장착" : "장착하기"}</button><button data-release="${index}" class="release">방생 · +${format(p.rate + p.bonus)} G</button>`}</article>`;
+}
+// 정렬은 표시 목록에만 적용합니다. 저장 배열의 번호는 장착·중복 펫을 구분합니다.
+const selectedPets = new Set();
+function inventoryItems() {
+  const rarity = $("inventory-rarity").value, sort = $("inventory-sort").value;
+  const items = state.pets.map((id, index) => ({ id, index }))
+    .filter(item => rarity === "all" || PETS[item.id].rarity === Number(rarity));
+  if (sort !== "obtained") items.sort((a, b) =>
+    (PETS[a.id].rarity - PETS[b.id].rarity) * (sort === "rarity-desc" ? -1 : 1) || a.index - b.index);
+  return items;
+}
+function renderSelection() {
+  const eligible = inventoryItems().filter(item => !state.equipped.includes(item.index));
+  const allowed = new Set(eligible.map(item => item.index));
+  for (const index of selectedPets) if (!allowed.has(index)) selectedPets.delete(index);
+  const reward = [...selectedPets].reduce((sum, index) => {
+    const p = PETS[state.pets[index]]; return sum + p.rate + p.bonus;
+  }, 0);
+  $("selection-summary").textContent = `선택 ${selectedPets.size}마리 · 보상 ${format(reward)} G`;
+  $("release-selected").disabled = selectedPets.size === 0;
+  $("clear-selection").disabled = selectedPets.size === 0;
+  $("select-visible").disabled = eligible.length === 0 || eligible.every(item => selectedPets.has(item.index));
+  document.querySelectorAll("[data-pet-select]").forEach(input => { input.checked = selectedPets.has(Number(input.dataset.petSelect)); });
 }
 function renderPets() {
   $("recommend").disabled = state.pets.length === 0;
   $("slots").textContent = `장착 ${state.equipped.length} / ${SLOT_LIMIT}`;
   $("pet-count").textContent = `${state.pets.length}마리`;
-  $("inventory").innerHTML = state.pets.length ? state.pets.map((id, i) => petCard(id, i)).join("") : '<p class="empty">아직 펫이 없어요. 첫 왁뿌볼을 깨 보세요!</p>';
+  renderSelection();
+  const items = inventoryItems();
+  $("inventory").innerHTML = items.length ? items.map(item => petCard(item.id, item.index)).join("") : `<p class="empty">${state.pets.length ? "이 등급의 펫이 없어요." : "아직 펫이 없어요. 첫 왁뿌볼을 깨 보세요!"}</p>`;
   $("codex").innerHTML = PETS.map((_, id) => petCard(id, id, true)).join("");
   world.sync(state.equipped.map(index => {
     const id = state.pets[index], pet = PETS[id];
@@ -176,6 +201,49 @@ $("shop").addEventListener("click", e => {
   state.gold = Math.max(0, state.gold - cost); state.stock[tier]++;
   save(); renderStats(); renderBall(); message(`${BALLS[tier].name} 구매 완료! 보유 왁뿌볼에서 선택하세요.`);
 });
+function releasePets(indices) {
+  accrueGold();
+  const released = new Set(indices), nextPets = [], remap = new Map();
+  let reward = 0;
+  state.pets.forEach((id, index) => {
+    if (released.has(index)) { const p = PETS[id]; reward += p.rate + p.bonus; }
+    else { remap.set(index, nextPets.length); nextPets.push(id); }
+  });
+  // 배열 번호가 바뀌어도 최근 장착 순서를 유지합니다.
+  state.equipped = state.equipped.filter(index => !released.has(index)).map(index => remap.get(index));
+  state.pets = nextPets;
+  state.gold = Math.min(1e15, state.gold + reward);
+  selectedPets.clear(); world.clear(); selectedWorldPet = null; $("pet-info").hidden = true;
+  return reward;
+}
+$("inventory-rarity").addEventListener("change", () => {
+  selectedPets.clear(); renderPets();
+  $("inventory-notice").textContent = "등급을 변경해 방생 선택을 해제했어요.";
+});
+$("inventory-sort").addEventListener("change", renderPets);
+$("inventory").addEventListener("change", event => {
+  const input = event.target.closest("[data-pet-select]");
+  if (!input) return;
+  const index = Number(input.dataset.petSelect);
+  if (!integer(index, state.pets.length - 1) || state.equipped.includes(index)) return;
+  if (input.checked) selectedPets.add(index); else selectedPets.delete(index);
+  renderSelection();
+});
+$("select-visible").addEventListener("click", () => {
+  inventoryItems().forEach(item => { if (!state.equipped.includes(item.index)) selectedPets.add(item.index); });
+  renderSelection();
+});
+$("clear-selection").addEventListener("click", () => { selectedPets.clear(); renderSelection(); });
+$("release-selected").addEventListener("click", () => {
+  renderSelection();
+  if (!selectedPets.size) return;
+  const indices = [...selectedPets];
+  const reward = indices.reduce((sum, index) => { const p = PETS[state.pets[index]]; return sum + p.rate + p.bonus; }, 0);
+  if (!confirm(`선택한 펫 ${indices.length}마리를 방생하고 총 ${format(reward)} G를 받을까요? 삭제한 펫은 되돌릴 수 없습니다. 장착 펫과 도감 기록은 유지됩니다.`)) return;
+  releasePets(indices);
+  $("inventory-notice").textContent = `${indices.length}마리 방생 완료 · +${format(reward)} G`;
+  save(); render();
+});
 $("inventory").addEventListener("click", e => {
   const button = e.target.closest("[data-equip], [data-release]");
   if (!button) return;
@@ -186,11 +254,7 @@ $("inventory").addEventListener("click", e => {
   if (release && !confirm(`${pet.name}을 방생하고 ${format(pet.rate + pet.bonus)} G를 받을까요? 인벤토리에서 삭제되며 되돌릴 수 없습니다. 도감 기록은 유지됩니다.`)) return;
   accrueGold();
   if (release) {
-    state.gold = Math.min(1e15, state.gold + pet.rate + pet.bonus);
-    state.pets.splice(index, 1);
-    // 삭제된 번호 뒤의 펫 번호를 한 칸 당깁니다. 발견 기록은 지우지 않습니다.
-    state.equipped = state.equipped.filter(i => i !== index).map(i => i > index ? i - 1 : i);
-    world.clear(); selectedWorldPet = null; $("pet-info").hidden = true;
+    releasePets([index]);
     $("inventory-notice").textContent = `${pet.name} 방생 완료 · +${format(pet.rate + pet.bonus)} G`;
   } else if (state.equipped.includes(index)) state.equipped = state.equipped.filter(i => i !== index);
   else {
@@ -217,6 +281,7 @@ $("sound-toggle").addEventListener("click", () => {
 $("reset").addEventListener("click", () => {
   if (!confirm("골드, 펫, 도감, 구매 기록을 모두 초기화할까요? 이 작업은 되돌릴 수 없습니다.")) return;
   clearTimeout(hatchTimer); hatching = false; state = defaults(); lastTick = performance.now();
+  selectedPets.clear(); $("inventory-rarity").value = "all"; $("inventory-sort").value = "obtained";
   $("ball").classList.remove("breaking", "hit"); $("burst").classList.remove("active");
   save(); render(); message("새로운 연구를 시작합니다. 첫 왁뿌볼을 깨 보세요!");
 });

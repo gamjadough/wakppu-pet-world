@@ -48,6 +48,20 @@
 .inventory-tools{display:flex;align-items:center;gap:12px;margin:14px 0 8px}
 #inventory-notice{font-size:12px;min-height:20px}
 .pet-card .release{display:block;width:100%;margin-top:6px;font-size:11px;color:#a06548}
+.inventory-filters{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:12px 0}
+.inventory-filters label{display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:600}
+.inventory-filters select{width:100%;min-width:0;min-height:44px;padding:8px;font:inherit;font-size:13px;color:#405744;background:#fffbed;border:1px solid #c7c9ad;border-radius:10px;touch-action:manipulation}
+.inventory-filters select:focus-visible,.pet-selection input:focus-visible{outline:3px solid var(--mint);outline-offset:3px}
+.inventory-bulk{padding:12px;background:#f0f3df;border:1px solid #d9dfc4;border-radius:12px}
+.bulk-actions,.bulk-release{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.inventory-bulk button{min-height:44px;font-size:12px;padding:6px 10px}
+.inventory-bulk .muted{font-size:11px;margin:8px 0}
+.bulk-release{justify-content:space-between;font-size:12px}
+#release-selected{color:#994f32}
+.pet-selection{display:flex;align-items:center;gap:6px;min-height:44px;font-size:12px;cursor:pointer;touch-action:manipulation}
+.pet-selection input{width:20px;height:20px;margin:0;accent-color:#5c8f62;flex-shrink:0}
+.pet-selection:has(input:disabled){color:#748475;cursor:default}
+.pet-card:has(input:checked){outline:2px solid #5c8f62;outline-offset:-2px;background:#edf5df}
 @media(max-height:700px){
  #menu-panel[data-page="hatch-panel"] .menu-heading{padding:6px 12px}
  #menu-panel[data-page="hatch-panel"] .menu-heading .eyebrow{display:none}
