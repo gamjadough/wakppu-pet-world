@@ -22,6 +22,8 @@ const fs = require('node:fs');
   }
   async function snapshot() { return read(() => JSON.parse(localStorage.getItem('wakppu-v01'))); }
   async function seed(data) {
+    // 일반 회귀 검사에서는 잠시 평화 상태로 두고 싸움 자체는 별도 검사합니다.
+    data.peaceUntil = Object.fromEntries((data.pets || []).map((_, i) => [i, Date.now() + 10000]));
     // 새로고침 직전 자동 저장이 테스트용 데이터를 덮어쓰지 않게 막습니다.
     await page.evaluate(value => { window.removeEventListener('pagehide', save); save = () => {}; localStorage.setItem('wakppu-v01', JSON.stringify(value)); }, data);
     await page.reload();

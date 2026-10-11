@@ -151,3 +151,23 @@
  .world-empty button{min-height:44px}
  .pet-info{bottom:6px}
 }
+/* 싸움 중에는 산책 대신 제자리에서 티격태격합니다. */
+.world-game .fight-status{position:absolute;z-index:1300;bottom:44px;left:50%;transform:translateX(-50%);max-width:94%;background:#fff1d5;border:2px solid #da9866;color:#985531;font-size:12px;font-weight:700;white-space:nowrap;padding:9px 14px}
+.fighting .pet-sprite{animation:pet-quarrel .22s ease-in-out infinite}
+.fighting .pet-foot{animation:none}
+.fighting .pet-name{background:#fff0d8;border-color:#dc9667;color:#994928}
+.fighting:after{content:'!';position:absolute;top:-12px;right:8px;color:#b54c33;background:#fff5d8;border:2px solid #d98a64;border-radius:50%;font-size:19px;font-weight:900;width:25px;height:25px;line-height:21px;text-align:center;pointer-events:none}
+@keyframes pet-quarrel{25%{margin-left:-4px;margin-top:-2px}75%{margin-left:4px;margin-top:1px}}
+@media(max-width:700px){.world-game .fight-status{font-size:10px;padding:8px;bottom:32px}}
+@media(prefers-reduced-motion:reduce){.fighting .pet-sprite{animation:none}}
+
+.account-toggle { position: fixed; right: 16px; top: 88px; z-index: 50; padding: 8px 16px; border-radius: 14px; box-shadow: 0 4px 16px #20372e20; }
+.account-panel { position: fixed; top: 136px; right: 16px; width: min(360px, calc(100vw - 32px)); max-height: calc(100dvh - 220px); overflow: auto; padding: 20px; z-index: 60; background: #fffdf4; color: #294536; border: 1px solid #ceddc4; border-radius: 20px; box-shadow: 0 12px 40px #20372e30; }
+.account-panel[hidden] { display: none; }
+.account-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.account-heading h2 { margin: 0; font-size: 20px; }
+.account-panel p { line-height: 1.6; overflow-wrap: anywhere; }
+.account-panel button { margin: 4px 0; }
+#account-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+#account-actions[hidden] { display: none; }
+@media (max-width: 600px) { .account-toggle { top: 76px; right: 12px; } .account-panel { top: 122px; right: 12px; } }
