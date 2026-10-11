@@ -2,8 +2,9 @@
 
 // 이동 상태는 저장/골드 상태와 독립적입니다. 배경은 HTML, 모습은 CSS에서 꾸밉니다.
 class PetWorld {
-  constructor(map, layer, onSelect) {
+  constructor(map, layer, onSelect, rules = {}) {
     this.map = map; this.layer = layer; this.onSelect = onSelect;
+    this.rules = rules;
     this.actors = new Map();
     this.width = map.clientWidth; this.height = map.clientHeight;
     this.lastFrame = performance.now();
@@ -31,7 +32,11 @@ class PetWorld {
       element.innerHTML = '<span class="pet-shadow"></span><span class="pet-sprite"><span class="pet-ear ear-left"></span><span class="pet-ear ear-right"></span><span class="pet-body"><span class="pet-eyes"></span><span class="pet-cheeks"></span><span class="pet-mouth"></span><span class="pet-belly"></span></span><span class="pet-foot foot-left"></span><span class="pet-foot foot-right"></span></span><span class="pet-name"></span><span class="pet-rest">zzZ</span>';
       element.querySelector(".pet-name").textContent = pet.name;
       this.layer.append(element);
-      const actor = { element, x: this.width * (.27 + slot * .23), y: this.height * (.5 + (slot % 2) * .16), angle: .8 + slot * 2, speed: 32 + (pet.index % 7) * 5 + slot * 8, changeIn: 2 + slot, rest: 0 };
+      const actor = { index: pet.index, name: pet.name, element, x: this.width * (.27 + slot * .23), y: this.height * (.5 + (slot % 2) * .16), angle: .8 + slot * 2, speed: 32 + (pet.index % 7) * 5 + slot * 8, changeIn: 2 + slot, rest: 0 };
+      // 저장된 싸움을 복원할 때 두 참가자가 함께 보이도록 배치합니다.
+      const opponent = this.rules.isFighting?.(pet.index)
+        ? [...this.actors.values()].find(a => this.rules.isFighting?.(a.index)) : null;
+      if (opponent) { actor.x = opponent.x + 88; actor.y = opponent.y; }
       this.actors.set(pet.index, actor); this.clamp(actor); this.paint(actor);
     });
     document.getElementById("world-empty").hidden = pets.length > 0;
@@ -63,7 +68,10 @@ class PetWorld {
     actor.element.style.transform = `translate(${actor.x - 45}px, ${actor.y - 65}px)`;
     actor.element.style.zIndex = Math.round(actor.y);
     actor.element.style.setProperty("--facing", Math.cos(actor.angle) < 0 ? -1 : 1);
-    actor.element.classList.toggle("resting", actor.rest > 0);
+    const fighting = this.rules.isFighting?.(actor.index) || false;
+    actor.element.classList.toggle("resting", !fighting && actor.rest > 0);
+    actor.element.classList.toggle("fighting", fighting);
+    actor.element.setAttribute("aria-label", fighting ? `${actor.name} 싸움 중재하기` : `${actor.name} 정보 보기`);
   }
   frame(time) {
     // 탭 복귀 시 순간이동 방지. 수익은 game.js의 별도 타이머에서 계산합니다.
@@ -71,6 +79,7 @@ class PetWorld {
     this.lastFrame = time;
     if (!document.hidden) {
       for (const actor of this.actors.values()) {
+        if (this.rules.isFighting?.(actor.index)) continue;
         actor.changeIn -= dt;
         if (actor.rest > 0) actor.rest = Math.max(0, actor.rest - dt);
         else {
@@ -90,9 +99,14 @@ class PetWorld {
         const a = actors[i], b = actors[j], dx = b.x - a.x, dy = b.y - a.y;
         const distance = Math.hypot(dx, dy);
         if (distance < 88) {
+          this.rules.meet?.(a.index, b.index);
           const ux = distance > .01 ? dx / distance : 1, uy = distance > .01 ? dy / distance : 0;
           const push = (88 - distance) / 2 + .1;
-          a.x -= ux * push; a.y -= uy * push; b.x += ux * push; b.y += uy * push;
+          const af = this.rules.isFighting?.(a.index), bf = this.rules.isFighting?.(b.index);
+          // 제3의 펫이 다가와도 싸우는 펫을 끌고 다니지 않습니다.
+          const ap = af && !bf ? 0 : bf && !af ? push * 2 : push;
+          const bp = bf && !af ? 0 : af && !bf ? push * 2 : push;
+          a.x -= ux * ap; a.y -= uy * ap; b.x += ux * bp; b.y += uy * bp;
           a.angle = Math.atan2(-uy, -ux); b.angle = Math.atan2(uy, ux);
           this.clamp(a); this.clamp(b);
         }
