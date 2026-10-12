@@ -23,7 +23,8 @@
   <p id="account-status" role="status" aria-live="polite">게스트로 플레이 중</p>
   <p id="cloud-status" role="status" aria-live="polite">진행상태는 이 브라우저에 저장됩니다.</p>
   <button id="account-login">Google로 로그인</button>
-  <div id="account-actions" hidden><button id="account-save">서버에 지금 저장</button><button id="account-reload">서버 기록 다시 불러오기</button><button id="account-logout">로그아웃</button></div>
-  <p class="muted">다른 브라우저로 옮기기 전에 서버 저장 완료를 확인하세요. 기존 계정 저장이 있으면 해당 기록으로 시작합니다.</p>
+  <p id="guest-status" class="muted"></p>
+  <div id="account-actions" hidden><button id="account-save">서버에 지금 저장</button><button id="account-import" hidden>기존 브라우저 기록을 계정으로 가져오기</button><button id="account-reload">서버 기록 다시 불러오기</button><button id="account-logout">로그아웃</button></div>
+  <p class="muted">첫 로그인은 기존 브라우저 기록을 이어갑니다. 이미 계정 기록이 있으면 서버 기록으로 시작하며, 기존 브라우저 기록은 따로 유지됩니다. 다른 브라우저로 옮기기 전에 서버 저장 완료를 확인하세요.</p>
 </section>
 </body></html>

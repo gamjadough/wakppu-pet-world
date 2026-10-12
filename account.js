@@ -9,12 +9,24 @@
   let inFlight = null, lastUploaded = "", cloudMessage = "";
   let switching = false;
 
+  function hasProgress(save) {
+    return !!(save.pets.length || save.gold || save.cracks || save.discovered.length || save.stock.some(Boolean));
+  }
+  function guestInfo() {
+    const guest = game.guestSave();
+    el("guest-status").textContent = hasProgress(guest)
+      ? `이 브라우저의 기존 기록: 펫 ${guest.pets.length}마리 · ${Math.floor(guest.gold).toLocaleString("ko-KR")} G`
+      : "이 브라우저에 기존 게스트 진행상태가 없습니다.";
+    el("account-import").hidden = !hasProgress(guest);
+  }
+
   function status(text) {
     cloudMessage = text;
     el("cloud-status").textContent = text;
     if (userId) el("save-status").textContent = text;
   }
   function panel(open) {
+    if (open) guestInfo();
     el("account-panel").hidden = !open;
     el("account-toggle").setAttribute("aria-expanded", String(open));
   }
@@ -74,9 +86,8 @@
       } else {
         revision = 0; lastUploaded = "";
         const guest = game.guestSave();
-        const hasProgress = guest.pets.length || guest.gold || guest.cracks || guest.discovered.length || guest.stock.some(Boolean);
-        incoming = hasProgress && confirm("새 계정입니다. 이 브라우저의 게스트 진행상태를 계정에 연결할까요? 취소하면 새 게임으로 시작합니다.")
-          ? guest : game.freshSave();
+        // 첫 계정 저장은 기존 브라우저 기록을 그대로 이어갑니다. 게스트 원본은 유지합니다.
+        incoming = guest;
       }
       game.useSave(incoming, userId);
       ready = true; switching = false;
@@ -112,6 +123,25 @@
   el("account-toggle").addEventListener("click", () => panel(el("account-panel").hidden));
   el("account-close").addEventListener("click", () => panel(false));
   el("account-save").addEventListener("click", upload);
+  el("account-import").addEventListener("click", async () => {
+    if (!client || !userId || !ready || switching || conflicted) return;
+    const guest = game.guestSave();
+    if (!hasProgress(guest)) { guestInfo(); return; }
+    if (!confirm(`기존 브라우저 기록(펫 ${guest.pets.length}마리 · ${Math.floor(guest.gold)} G)으로 계정 진행상태를 교체할까요? 합치지 않습니다. 현재 계정 기록은 이 브라우저에 백업하고, 기존 게스트 원본도 유지합니다.`)) return;
+    switching = true; pause(true);
+    if (inFlight) await inFlight;
+    if (!ready || conflicted) { switching = false; pause(conflicted); return; }
+    try {
+      // 백업이 실패하면 서버 기록을 교체하지 않습니다.
+      localStorage.setItem(`wakppu-v01:account-backup:${userId}:${Date.now()}`, JSON.stringify(game.snapshot()));
+      const { data, error } = await client.rpc("save_game", { p_state: guest, p_revision: revision });
+      if (error) throw error;
+      revision = Number(data); lastUploaded = JSON.stringify(guest);
+      game.useSave(guest, userId);
+      status("기존 브라우저 기록 연결 완료 · 계정 서버 저장 완료");
+    } catch (error) { fail(error); }
+    finally { switching = false; pause(conflicted); guestInfo(); }
+  });
   el("account-reload").addEventListener("click", async () => {
     if (!client || !userId || switching) return;
     if (!confirm("서버 기록을 불러오면 현재 화면의 미저장 진행은 대체됩니다. 계속할까요?")) return;

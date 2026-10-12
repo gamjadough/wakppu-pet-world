@@ -9,7 +9,8 @@ const blank = () => ({ version: 1, gold: 0, pets: [], equipped: [], discovered: 
 (async () => {
   const browser = await chromium.launch({ channel: 'chrome', headless: true });
   let row = null, failWrites = false;
-  const errors = [];
+  const errors = [], dialogs = [];
+  let acceptDialogs = true;
   async function context(user) {
     const ctx = await browser.newContext();
     // 로컬 네트워크 권한 없이 저장소 파일을 브라우저 응답으로 제공합니다.
@@ -46,7 +47,7 @@ const blank = () => ({ version: 1, gold: 0, pets: [], equipped: [], discovered: 
     }, { user, blank: blank() });
     const page = await ctx.newPage();
     page.on('pageerror', e => errors.push(e.message));
-    page.on('dialog', d => d.accept());
+    page.on('dialog', d => { dialogs.push(d.message()); return acceptDialogs ? d.accept() : d.dismiss(); });
     await page.goto('https://wakppu.test/');
     await page.waitForFunction(() => document.getElementById('cloud-status').textContent === '계정 서버 저장 완료');
     return { ctx, page };
@@ -55,6 +56,7 @@ const blank = () => ({ version: 1, gold: 0, pets: [], equipped: [], discovered: 
     const a = await context('user-a');
     assert.equal(row.state.gold, 25);
     assert.deepEqual(row.state.pets, [0]);
+    assert.equal(dialogs.length, 0, '첫 로그인은 확인창 없이 게스트 진행을 가져옵니다');
     await a.page.evaluate(() => { state.gold = 70; save(); });
     await a.page.locator('#account-toggle').click();
     await a.page.locator('#account-save').click();
@@ -85,6 +87,31 @@ const blank = () => ({ version: 1, gold: 0, pets: [], equipped: [], discovered: 
     await b.page.locator('#account-save').click();
     await b.page.waitForFunction(() => document.getElementById('cloud-status').textContent === '계정 서버 저장 완료');
     assert.equal(row.state.gold, 120);
+
+    // 서버 기록이 이미 있어도 원래 게스트 기록을 명시적으로 복구할 수 있습니다.
+    assert.match(await b.page.locator('#guest-status').textContent(), /펫 1마리.*25 G/);
+    acceptDialogs = false;
+    await b.page.locator('#account-import').click();
+    assert.equal(row.state.gold, 120, '취소하면 계정 기록을 유지합니다');
+    acceptDialogs = true; failWrites = true;
+    await b.page.locator('#account-import').click();
+    await b.page.waitForFunction(() => document.getElementById('cloud-status').textContent.includes('서버 저장 실패'));
+    assert.equal(await b.page.evaluate(() => state.gold), 120, '가져오기 실패 시 현재 계정 진행을 유지합니다');
+    assert.equal(row.state.gold, 120);
+    failWrites = false;
+    await b.page.locator('#account-import').click();
+    await b.page.waitForFunction(() => document.getElementById('cloud-status').textContent.includes('기존 브라우저 기록 연결 완료'));
+    assert.equal(row.state.gold, 25);
+    assert.deepEqual(row.state.pets, [0]);
+    assert.equal(await b.page.evaluate(() => state.gold), 25);
+    assert.equal(await b.page.evaluate(() => Object.keys(localStorage).some(key => key.startsWith('wakppu-v01:account-backup:user-a:') && JSON.parse(localStorage.getItem(key)).gold === 120)), true);
+    assert.equal(await b.page.evaluate(() => JSON.parse(localStorage.getItem('wakppu-v01')).gold), 25);
+    await b.page.reload();
+    await b.page.waitForFunction(() => document.getElementById('cloud-status').textContent === '계정 서버 저장 완료');
+    assert.equal(await b.page.evaluate(() => state.gold), 25);
+    await b.page.locator('#account-toggle').click();
+    await b.page.screenshot({ path: path.join(base, 'preview/account-import-verified.png') });
+    console.log('PASS: 첫 로그인 자동 가져오기, 기존 계정 가져오기 취소/실패/성공, 원본과 계정 백업 유지, 서버 복원');
     await b.page.locator('#account-logout').click();
     await b.page.waitForFunction(() => document.getElementById('account-status').textContent === '게스트로 플레이 중');
     assert.equal(await b.page.evaluate(() => state.gold), 25);
