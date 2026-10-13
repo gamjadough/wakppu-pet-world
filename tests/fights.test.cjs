@@ -14,6 +14,7 @@ const { pathToFileURL } = require('node:url');
   async function seed(data) {
     await page.evaluate(value => { window.removeEventListener('pagehide', save); save = () => {}; localStorage.setItem('wakppu-v01', JSON.stringify(value)); }, { ...base, ...data });
     await page.reload();
+    await page.waitForFunction(() => !gamePaused);
     await page.evaluate(() => { for (const a of world.actors.values()) a.rest = 100; });
   }
   async function meet() {
@@ -23,7 +24,10 @@ const { pathToFileURL } = require('node:url');
       const actors = [...world.actors.values()];
       actors.forEach((a, i) => { a.x = world.width * (i < 2 ? .4 : .8); a.y = world.height * .5; a.rest = 100; world.paint(a); });
     });
-    await page.waitForTimeout(120);
+    await page.waitForFunction(() => {
+      const actors = [...world.actors.values()];
+      return actors.length < 2 || Math.hypot(actors[0].x - actors[1].x, actors[0].y - actors[1].y) >= 85;
+    });
     await page.evaluate(() => { Math.random = window.encounterRandom; });
   }
   async function inventoryClick(selector) {
@@ -44,6 +48,7 @@ const { pathToFileURL } = require('node:url');
     assert.ok(gain > 3 && gain < 5.5, '싸우지 않는 펫만 수익 생산: ' + gain);
     assert.deepEqual(await page.evaluate(() => [...world.actors.values()].slice(0, 2).map(a => [a.x, a.y])), positions);
     await page.reload();
+    await page.waitForFunction(() => !gamePaused);
     assert.deepEqual((await state()).fights, [[0, 1]]);
     assert.equal(await page.locator('#income').textContent(), '4 G/s');
     await page.locator('[data-world-pet="0"]').click();
@@ -54,6 +59,7 @@ const { pathToFileURL } = require('node:url');
     await meet();
     assert.deepEqual((await state()).fights, []);
     await page.reload();
+    await page.waitForFunction(() => !gamePaused);
     await meet();
     assert.deepEqual((await state()).fights, [], '중재 후 평화 시간 새로고침 유지');
     await page.evaluate(() => { state.peaceUntil = {}; });
