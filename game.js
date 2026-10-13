@@ -25,7 +25,7 @@ const PETS = [
 ];
 const $ = id => document.getElementById(id);
 const format = n => new Intl.NumberFormat("ko-KR", { maximumFractionDigits: 1, notation: n >= 1000000 ? "compact" : "standard" }).format(n);
-const defaults = () => ({ version: 1, gold: 0, pets: [], equipped: [], discovered: [], stock: [0, 0, 0, 0], selected: 0, cracks: 0, soundEnabled: true, fights: [], peaceUntil: {} });
+const defaults = () => ({ version: 1, gold: 0, pets: [], equipped: [], discovered: [], stock: [0, 0, 0, 0], selected: 0, cracks: 0, soundEnabled: true, fights: [], peaceUntil: {}, fightEndsAt: 0, scene: "day" });
 const integer = (v, max) => Number.isInteger(v) && v >= 0 && v <= max;
 let storageOK = true;
 let activeSaveKey = SAVE_KEY;
@@ -36,6 +36,7 @@ function validateSave(data) {
   const clean = defaults();
   try {
     if (!data || data.version !== 1) return clean;
+    if (["day", "dusk"].includes(data.scene)) clean.scene = data.scene;
     if (typeof data.soundEnabled === "boolean") clean.soundEnabled = data.soundEnabled;
     if (Number.isFinite(data.gold) && data.gold >= 0) clean.gold = Math.min(data.gold, 1e15);
     if (Array.isArray(data.pets)) clean.pets = data.pets.filter(p => integer(p, PETS.length - 1)).slice(0, 10000);
@@ -53,6 +54,11 @@ function validateSave(data) {
           PETS[clean.pets[pair[0]]].ability === PETS[clean.pets[pair[1]]].ability) return false;
       pair.forEach(i => used.add(i)); return true;
     }).map(pair => [...pair]);
+    if (clean.fights.length) {
+      clean.fightEndsAt = Number.isFinite(data.fightEndsAt) && data.fightEndsAt > 0
+        ? Math.min(data.fightEndsAt, Date.now() + 20000) : Date.now() + 20000;
+      if (clean.fightEndsAt <= Date.now()) { clean.fights = []; clean.fightEndsAt = 0; }
+    }
     if (data.peaceUntil && typeof data.peaceUntil === "object") {
       clean.pets.forEach((_, i) => {
         const until = data.peaceUntil[i];
@@ -75,17 +81,26 @@ let lastTick = performance.now();
 // 상태 계산과 화면 갱신을 분리합니다. 인벤토리 번호로 같은 종류도 구분합니다.
 function equippedPets() { return state.equipped.map(index => PETS[state.pets[index]]); }
 function isFighting(index) { return state.fights.some(pair => pair.includes(index)); }
-function income() {
-  return state.equipped.filter(index => !isFighting(index))
-    .reduce((sum, index) => { const p = PETS[state.pets[index]]; return sum + p.rate + p.bonus; }, 0);
+function petIncome(index) {
+  if (isFighting(index)) return 0;
+  const id = state.pets[index], p = PETS[id];
+  const friend = state.equipped.some(other => other !== index && !isFighting(other) && relationship(id, state.pets[other]) === "friends");
+  return (p.rate + p.bonus) * (friend ? 1.1 : 1);
 }
-// 싸움은 화면 애니메이션이 아니라 게임 상태입니다. 중재 전에는 자동 종료하지 않습니다.
+function income() { return state.equipped.reduce((sum, index) => sum + petIncome(index), 0); }
+function friendshipBonus() {
+  return income() - state.equipped.filter(index => !isFighting(index)).reduce((sum, index) => {
+    const p = PETS[state.pets[index]]; return sum + p.rate + p.bonus;
+  }, 0);
+}
+// 다툼은 저장되는 게임 상태입니다. 클릭 중재 또는 20초 뒤 자연스럽게 화해합니다.
 function reconcileFights() {
   state.fights = state.fights.filter(pair => {
     if (pair.every(index => state.equipped.includes(index))) return true;
     pair.forEach(index => { if (state.equipped.includes(index)) state.peaceUntil[index] = Date.now() + 10000; });
     return false;
   });
+  if (!state.fights.length) state.fightEndsAt = 0;
   for (const index of Object.keys(state.peaceUntil)) {
     if (!integer(Number(index), state.pets.length - 1) || state.peaceUntil[index] <= Date.now()) delete state.peaceUntil[index];
   }
@@ -94,9 +109,10 @@ function startFight(a, b) {
   if (gamePaused) return;
   if (a === b || !state.equipped.includes(a) || !state.equipped.includes(b) || isFighting(a) || isFighting(b) ||
       state.peaceUntil[a] > Date.now() || state.peaceUntil[b] > Date.now() ||
-      PETS[state.pets[a]].ability === PETS[state.pets[b]].ability) return;
+      relationship(state.pets[a], state.pets[b]) !== "bicker") return;
   accrueGold(); // 만난 시각까지 이전 수익으로 정산한 다음 두 펫의 생산을 멈춥니다.
   state.fights.push([a, b]);
+  state.fightEndsAt = Date.now() + 20000;
   save(); renderStats();
 }
 function mediate(index) {
@@ -105,6 +121,7 @@ function mediate(index) {
   if (!pair) return false;
   accrueGold();
   state.fights = state.fights.filter(item => item !== pair);
+  if (!state.fights.length) state.fightEndsAt = 0;
   pair.forEach(i => {
     state.peaceUntil[i] = Date.now() + 10000;
     const actor = world.actors.get(i);
@@ -113,6 +130,18 @@ function mediate(index) {
   save(); renderStats();
   return true;
 }
+// 만남은 매 프레임 재추첨하지 않습니다. 한 번 만난 뒤 12초 쉬어 갑니다.
+function meetPets(a, b) {
+  if (gamePaused || isFighting(a) || isFighting(b) || state.peaceUntil[a] > Date.now() || state.peaceUntil[b] > Date.now()) return;
+  const left = world.actors.get(a), right = world.actors.get(b);
+  if (!left || !right || left.socialReadyAt > Date.now() || right.socialReadyAt > Date.now()) return;
+  left.socialReadyAt = right.socialReadyAt = Date.now() + 12000;
+  const relation = relationship(state.pets[a], state.pets[b]);
+  if (relation === "friends") {
+    left.playIn = right.playIn = 2.5;
+    left.rest = right.rest = 2.5;
+  } else if (relation === "bicker" && Math.random() < .25) startFight(a, b);
+}
 function clickPower() { return 1 + equippedPets().reduce((sum, p) => sum + p.power, 0); }
 // 장착을 바꾸기 전에 이전 구성으로 벌었던 골드를 먼저 정산합니다.
 function accrueGold() {
@@ -120,7 +149,16 @@ function accrueGold() {
   if (gamePaused) { lastTick = now; return; }
   const elapsed = Math.min(60, Math.max(0, (now - lastTick) / 1000));
   lastTick = now;
-  state.gold = Math.min(1e15, state.gold + income() * elapsed);
+  const deadline = state.fightEndsAt;
+  if (state.fights.length && deadline > 0 && deadline <= Date.now()) {
+    // 다툼이 끝난 시각 앞뒤를 나눠 계산해 종료 전 수익을 소급 지급하지 않습니다.
+    const stopped = Math.min(elapsed, Math.max(0, (deadline - (Date.now() - elapsed * 1000)) / 1000));
+    const oldIncome = income();
+    state.fights.forEach(pair => pair.forEach(index => { state.peaceUntil[index] = Date.now() + 10000; }));
+    state.fights = []; state.fightEndsAt = 0;
+    state.gold = Math.min(1e15, state.gold + oldIncome * stopped + income() * (elapsed - stopped));
+    save();
+  } else state.gold = Math.min(1e15, state.gold + income() * elapsed);
 }
 function save() {
   reconcileFights();
@@ -131,8 +169,16 @@ function save() {
 }
 function message(text) { $("result").textContent = text; }
 function renderStats() {
+  document.body.dataset.scene = state.scene;
+  $("garden-name").textContent = state.scene === "day" ? "햇살 정원" : "별빛 정원";
+  $("scene-toggle").textContent = state.scene === "day" ? "해질녘으로" : "햇살로";
+  $("scene-toggle").setAttribute("aria-pressed", String(state.scene === "dusk"));
+  if (selectedWorldPet !== null && state.equipped.includes(selectedWorldPet)) $("info-rate").textContent = `${format(petIncome(selectedWorldPet))} G/s`;
+  const bonus = Math.max(0, friendshipBonus());
+  $("team-summary").textContent = bonus > 0 ? `친구의 응원 +${format(bonus)} G/s` : "잘 맞는 친구를 함께 장착해 보세요";
+  $("garden-goal").textContent = state.pets.length === 0 ? "첫 친구를 만나러 가기" : state.equipped.length < 3 ? `정원 친구 ${state.equipped.length}/3 · 장착하기` : `도감 ${state.discovered.length}/10 · 새 친구 만나기`;
   $("fight-status").hidden = state.fights.length === 0;
-  $("fight-status").textContent = `싸우는 중 ${state.fights.length * 2}마리 · 펫을 클릭해 중재!`;
+  $("fight-status").textContent = `싸우는 중 ${state.fights.length * 2}마리 · 클릭해 중재 · 최대 20초`;
   $("sound-toggle").textContent = state.soundEnabled ? "소리 켜짐" : "소리 꺼짐";
   $("sound-toggle").setAttribute("aria-pressed", String(state.soundEnabled));
   $("gold").textContent = `${format(state.gold)} G`;
@@ -158,7 +204,7 @@ function petCard(petId, index, codex = false) {
   const p = PETS[petId];
   const known = !codex || state.discovered.includes(petId);
   const equipped = !codex && state.equipped.includes(index);
-  return `<article class="pet-card ${equipped ? "equipped" : ""} ${known ? "" : "unknown"}" style="--rarity:${COLORS[p.rarity]}">${codex ? "" : `<label class="pet-selection"><input type="checkbox" data-pet-select="${index}" aria-label="${p.name} ${index + 1}번 방생 선택" ${selectedPets.has(index) ? "checked" : ""} ${equipped ? "disabled" : ""}>${equipped ? "장착 중" : "방생 선택"}</label>`}<div class="pet-art" aria-hidden="true"></div><span class="rarity">${RARITIES[p.rarity]}</span><h3>${known ? p.name : "???"}</h3><p class="rate">${known ? `${format(p.rate + p.bonus)} G/s` : "미발견"}</p><p>${known ? p.ability : "부화하여 비밀을 발견하세요"}</p>${codex ? "" : `<button data-equip="${index}" >${equipped ? "장착 해제" : state.equipped.length >= SLOT_LIMIT ? "교체 장착" : "장착하기"}</button><button data-release="${index}" class="release">방생 · +${format(p.rate + p.bonus)} G</button>`}</article>`;
+  return `<article class="pet-card ${equipped ? "equipped" : ""} ${known ? "" : "unknown"}" style="--rarity:${COLORS[p.rarity]}">${codex ? "" : `<label class="pet-selection"><input type="checkbox" data-pet-select="${index}" aria-label="${p.name} ${index + 1}번 방생 선택" ${selectedPets.has(index) ? "checked" : ""} ${equipped ? "disabled" : ""}>${equipped ? "장착 중" : "방생 선택"}</label>`}<div class="pet-art" aria-hidden="true"></div><span class="rarity">${RARITIES[p.rarity]}</span><h3>${known ? p.name : "???"}</h3><p class="rate">${known ? `${format(p.rate + p.bonus)} G/s` : "미발견"}</p><p class="personality">${known ? PERSONALITIES[PET_PERSONALITY[petId]] + " 성격" : "성격 미발견"}</p><p>${known ? p.ability : "부화하여 비밀을 발견하세요"}</p>${codex ? "" : `<button data-equip="${index}" >${equipped ? "장착 해제" : state.equipped.length >= SLOT_LIMIT ? "교체 장착" : "장착하기"}</button><button data-release="${index}" class="release">방생 · +${format(p.rate + p.bonus)} G</button>`}</article>`;
 }
 // 정렬은 표시 목록에만 적용합니다. 저장 배열의 번호는 장착·중복 펫을 구분합니다.
 const selectedPets = new Set();
@@ -366,7 +412,7 @@ window.addEventListener("pagehide", save);
 document.addEventListener("visibilitychange", () => { if (document.hidden) save(); });
 
 // 메뉴 열고 닫기는 표시만 바꾸며 게임 진행과 저장값은 유지합니다.
-const menuTitles = { "shop-panel": "왁뿌볼 상점", "hatch-panel": "왁뿌볼 부화실", "inventory-panel": "펫 인벤토리", "codex-panel": "펫 도감" };
+const menuTitles = { "shop-panel": "왁뿌볼 상점", "hatch-panel": "왁뿌볼 부화실", "inventory-panel": "펫 인벤토리", "codex-panel": "펫 도감", "guide-panel": "정원의 생활 안내" };
 let activeMenu = null;
 let menuTrigger = null;
 function openMenu(id, trigger) {
@@ -404,10 +450,13 @@ const world = new PetWorld($("world-map"), $("world-pets"), index => {
   const pet = PETS[state.pets[index]];
   $("info-rarity").textContent = RARITIES[pet.rarity];
   $("info-name").textContent = pet.name;
-  $("info-rate").textContent = `${format(pet.rate + pet.bonus)} G/s`;
+  $("info-rate").textContent = `${format(petIncome(index))} G/s`;
+  $("info-personality").textContent = `${PERSONALITIES[PET_PERSONALITY[state.pets[index]]]} 성격 · 친구의 응원은 생산 +10%`;
   $("info-ability").textContent = pet.ability;
   $("pet-info").hidden = false;
-}, { isFighting, meet: startFight });
+}, { isFighting, meet: meetPets });
+$("scene-toggle").addEventListener("click", () => { state.scene = state.scene === "day" ? "dusk" : "day"; save(); renderStats(); });
+$("garden-goal").addEventListener("click", event => { openMenu(state.pets.length > 0 && state.equipped.length < 3 ? "inventory-panel" : "hatch-panel", event.currentTarget); });
 $("fight-status").addEventListener("click", () => { if (state.fights.length) mediate(state.fights[0][0]); });
 $("close-pet-info").addEventListener("click", () => { selectedWorldPet = null; $("pet-info").hidden = true; });
 render(); save();
