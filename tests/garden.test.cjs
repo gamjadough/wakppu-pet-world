@@ -12,6 +12,7 @@ const { pathToFileURL } = require('node:url');
  async function seed(extra = {}) {
   await page.evaluate(data => { window.removeEventListener('pagehide', save); save = () => {}; localStorage.setItem('wakppu-v01', JSON.stringify(data)); }, { ...base, ...extra });
   await page.reload();
+    await page.waitForFunction(() => !gamePaused);
   await page.evaluate(() => { for (const a of world.actors.values()) a.rest = 100; });
  }
  const read = fn => page.evaluate(fn);
@@ -25,6 +26,7 @@ const { pathToFileURL } = require('node:url');
   await page.locator('#scene-toggle').click();
   assert.equal(await page.locator('body').getAttribute('data-scene'), 'dusk');
   await page.reload();
+    await page.waitForFunction(() => !gamePaused);
   assert.equal(await read(() => state.scene), 'dusk');
   assert.equal(await page.locator('#garden-name').textContent(), '별빛 정원');
   await page.locator('[data-menu="guide-panel"]').click();
