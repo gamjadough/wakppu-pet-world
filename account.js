@@ -26,6 +26,15 @@
     // 수익이 계속 변해도 타이머를 뒤로 미루지 않습니다.
     saveTimer = setTimeout(() => { saveTimer = null; upload(); }, 1000);
   }
+  async function readSession() {
+    let timer;
+    try {
+      return await Promise.race([
+        client.auth.getSession(),
+        new Promise((_, reject) => { timer = setTimeout(() => reject(new Error("Session timeout")), 15000); })
+      ]);
+    } finally { clearTimeout(timer); }
+  }
 
   function hasProgress(save) {
     return !!(save.pets.length || save.gold || save.cracks || save.discovered.length || save.stock.some(Boolean));
@@ -129,8 +138,9 @@
       ready = true; switching = false;
       rememberPending();
       status(data ? "계정 진행상태 불러오기 완료" : "첫 계정 저장 준비 중…");
+      // 기록 전환이 끝났으면 서버 저장은 백그라운드에서 처리합니다.
+      pause(false);
       await upload();
-      if (ready) pause(false);
     } catch {
       ready = false; switching = false; panel(true);
       status("계정 기록을 불러오지 못했어요. 다시 불러오거나 로그아웃해 주세요.");
@@ -150,6 +160,11 @@
   }
 
   window.wakppuCloud = {
+    blocked() {
+      // 자동 저장 로그는 숨기지만, 입력이 잠긴 이유와 해결 버튼은 숨기지 않습니다.
+      panel(true);
+      el("cloud-status").hidden = false;
+    },
     changed() {
       if (!userId) return;
       const dirty = ready && JSON.stringify(game.snapshot()) !== lastUploaded;
@@ -218,6 +233,7 @@
     }
     if (location.protocol === "file:") { status("계정 로그인은 웹 주소에서 사용할 수 있어요."); return; }
     pause(true);
+    status("계정 연결을 확인하는 중… 잠시 기다려 주세요.");
     try {
       if (!window.supabase) await new Promise((resolve, reject) => {
         const script = document.createElement("script");
@@ -230,7 +246,7 @@
       client = window.supabase.createClient(config.url, config.publishableKey, {
         global: { fetch: (url, options = {}) => fetch(url, { ...options, signal: AbortSignal.timeout(15000) }) }
       });
-      const { data, error } = await client.auth.getSession();
+      const { data, error } = await readSession();
       if (error) throw error;
       if (data.session?.user) await loadUser(data.session.user);
       else pause(false);
@@ -247,7 +263,7 @@
         if (userId && JSON.stringify(game.snapshot()) !== lastUploaded) { event.preventDefault(); event.returnValue = ""; }
       });
     } catch {
-      pause(false); status("서버 연결 실패 · 게스트 저장으로 플레이합니다.");
+      pause(false); status("서버 연결 실패 · 게스트 저장으로 플레이합니다."); panel(true);
     }
   }
   initialize();

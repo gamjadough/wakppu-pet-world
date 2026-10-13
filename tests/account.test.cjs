@@ -9,10 +9,10 @@ const blank = () => ({ version: 1, gold: 0, pets: [], equipped: [], discovered: 
 
 (async () => {
   const browser = await chromium.launch({ channel: 'chrome', headless: true });
-  let row = null, failWrites = false, writeDelay = 0;
+  let row = null, failWrites = false, writeDelay = 0, sessionDelay = 0;
   const errors = [], dialogs = [];
   let acceptDialogs = true;
-  async function context(user) {
+  async function context(user, duringLoad) {
     const ctx = await browser.newContext();
     // 로컬 네트워크 권한 없이 저장소 파일을 브라우저 응답으로 제공합니다.
     await ctx.route('https://wakppu.test/**', route => {
@@ -28,6 +28,7 @@ const blank = () => ({ version: 1, gold: 0, pets: [], equipped: [], discovered: 
       catch { return route.fulfill({ status: 404 }); }
     });
     await ctx.exposeBinding('fakeCloud', async (_, action, payload) => {
+      if (action === 'session') { if (sessionDelay) await new Promise(resolve => setTimeout(resolve, sessionDelay)); return; }
       if (action === 'load') return { data: row && JSON.parse(JSON.stringify(row)), error: null };
       if (writeDelay) await new Promise(resolve => setTimeout(resolve, writeDelay));
       if (failWrites) return { error: { message: 'network failed' } };
@@ -43,7 +44,7 @@ const blank = () => ({ version: 1, gold: 0, pets: [], equipped: [], discovered: 
       let callback;
       window.supabase = { createClient: () => ({
         auth: {
-          getSession: async () => ({ data: { session: { user: { id: user } } } }),
+          getSession: async () => { await window.fakeCloud('session'); return { data: { session: { user: { id: user } } } }; },
           getUser: async () => ({ data: { user: { id: user } } }),
           onAuthStateChange: fn => { callback = fn; },
           signOut: async () => { callback?.('SIGNED_OUT', null); return {}; }
@@ -56,11 +57,26 @@ const blank = () => ({ version: 1, gold: 0, pets: [], equipped: [], discovered: 
     page.on('pageerror', e => errors.push(e.message));
     page.on('dialog', d => { dialogs.push(d.message()); return acceptDialogs ? d.accept() : d.dismiss(); });
     await page.goto('https://wakppu.test/');
-    await page.waitForFunction(() => document.getElementById('cloud-status').textContent === '계정 서버 저장 완료');
+    const skipReady = duringLoad && await duringLoad(page) === false;
+    if (!skipReady) await page.waitForFunction(() => document.getElementById('cloud-status').textContent === '계정 서버 저장 완료');
     return { ctx, page };
   }
   try {
-    const a = await context('user-a');
+    writeDelay = 2000; sessionDelay = 1000;
+    const a = await context('user-a', async page => {
+      await page.waitForFunction(() => gamePaused && document.getElementById('cloud-status').textContent.includes('계정 연결을 확인'));
+      const menu = await page.locator('.world-nav [data-menu="hatch-panel"]').boundingBox();
+      await page.mouse.click(menu.x + menu.width / 2, menu.y + menu.height / 2);
+      assert.equal(await page.locator('#account-panel').isVisible(), true);
+      assert.equal(await page.locator('#cloud-status').isVisible(), true, '입력 잠금 안내는 숨기지 않습니다');
+      await page.locator('#account-close').click();
+      await page.waitForFunction(() => document.getElementById('cloud-status').textContent === '계정 서버에 저장 중…');
+      assert.equal(await page.evaluate(() => gamePaused), false, '계정 기록을 불러온 뒤 저장 응답을 기다려도 클릭은 잠그지 않습니다');
+      await page.locator('.world-nav [data-menu="hatch-panel"]').click({ timeout: 1000 });
+      assert.equal(await page.locator('#hatch-panel').isVisible(), true);
+      await page.locator('#close-menu').click();
+    });
+    writeDelay = 0; sessionDelay = 0;
     assert.equal(row.state.gold, 25);
     assert.deepEqual(row.state.pets, [0]);
     assert.equal(dialogs.length, 0, '첫 로그인은 확인창 없이 게스트 진행을 가져옵니다');
@@ -181,6 +197,19 @@ const blank = () => ({ version: 1, gold: 0, pets: [], equipped: [], discovered: 
     assert.equal(await c.page.evaluate(() => state.gold), 260);
     assert.equal(await c.page.evaluate(() => localStorage.getItem('wakppu-v01:account-pending:user-a')), null);
     console.log('PASS: 버튼 없는 자동 저장, 즉시 재접속 복구, 서버 오류 후 재접속/자동 재시도, 전송 중 변경, 다른 기기 충돌 보호');
+    await c.ctx.close();
+    sessionDelay = 16000;
+    const stalled = await context('user-a', async page => {
+      await page.waitForFunction(() => document.getElementById('cloud-status').textContent.includes('서버 연결 실패'), null, { timeout: 20000 });
+      assert.equal(await page.evaluate(() => gamePaused), false);
+      await page.locator('#account-close').click();
+      await page.locator('.world-nav [data-menu="hatch-panel"]').click();
+      await page.locator('#ball').click();
+      assert.equal(await page.evaluate(() => state.cracks), 1, '세션 조회가 멈춰도 무한 입력 잠금 없이 게스트 조작 가능');
+      return false;
+    });
+    await stalled.ctx.close();
+    console.log('PASS: 세션 조회 지연 제한과 게스트 클릭 복구');
     assert.deepEqual(errors, []);
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

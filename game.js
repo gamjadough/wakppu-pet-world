@@ -464,6 +464,7 @@ render(); save();
 // 서버 로그인 전환 중에는 조작과 수익을 함께 멈춥니다.
 document.addEventListener("click", event => {
   if (gamePaused && !event.target.closest("#account-panel, #account-toggle")) {
+    window.wakppuCloud?.blocked();
     event.preventDefault(); event.stopImmediatePropagation();
   }
 }, true);
