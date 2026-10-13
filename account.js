@@ -8,6 +8,9 @@
   let client, userId = null, revision = 0, ready = false, conflicted = false;
   let inFlight = null, lastUploaded = "", cloudMessage = "";
   let switching = false;
+  // 정상 저장은 조용히 진행하고, 계정 창에는 해결이 필요한 문제만 표시합니다.
+  el("save-status").hidden = true;
+  el("cloud-status").hidden = true;
   let saveTimer = null;
   const pendingKey = () => `wakppu-v01:account-pending:${userId}`;
   function rememberPending() {
@@ -38,6 +41,7 @@
   function status(text) {
     cloudMessage = text;
     el("cloud-status").textContent = text;
+    el("cloud-status").hidden = !/실패|다른 브라우저|못했|불가/.test(text);
     if (userId) el("save-status").textContent = text;
   }
   function panel(open) {
