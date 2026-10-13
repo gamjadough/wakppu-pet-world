@@ -101,7 +101,7 @@ const { pathToFileURL } = require('node:url');
         }
       }
       // 일괄 방생으로 번호가 바뀌어도 장착 펫의 진행 중인 싸움을 유지합니다.
-      await seed([0, 1, 6, 8, 9], [4, 2]);
+      await seed([0, 1, 6, 8, 7], [4, 2]);
       await page.evaluate(() => { state.fights = []; startFight(4, 2); state.peaceUntil[3] = Date.now() + 10000; save(); });
       await page.locator('#inventory-rarity').selectOption('0');
       await page.locator('#select-visible').tap();

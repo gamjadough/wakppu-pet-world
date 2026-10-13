@@ -64,13 +64,15 @@ const blank = () => ({ version: 1, gold: 0, pets: [], equipped: [], discovered: 
     assert.equal(row.state.gold, 25);
     assert.deepEqual(row.state.pets, [0]);
     assert.equal(dialogs.length, 0, '첫 로그인은 확인창 없이 게스트 진행을 가져옵니다');
-    await a.page.evaluate(() => { state.gold = 70; save(); });
+    await a.page.evaluate(() => { state.gold = 70; state.scene = "dusk"; save(); });
     await a.page.locator('#account-toggle').click();
     await a.page.locator('#account-save').click();
     await a.page.waitForFunction(() => document.getElementById('cloud-status').textContent === '계정 서버 저장 완료');
     assert.equal(row.state.gold, 70);
+    assert.equal(row.state.scene, "dusk");
     const b = await context('user-a');
     assert.equal(await b.page.evaluate(() => state.gold), 70);
+    assert.equal(await b.page.evaluate(() => state.scene), "dusk");
     await a.page.evaluate(() => { state.gold = 90; save(); });
     await a.page.locator('#account-save').click();
     await a.page.waitForFunction(() => document.getElementById('cloud-status').textContent === '계정 서버 저장 완료');
@@ -117,7 +119,7 @@ const blank = () => ({ version: 1, gold: 0, pets: [], equipped: [], discovered: 
     await b.page.waitForFunction(() => document.getElementById('cloud-status').textContent === '계정 서버 저장 완료');
     assert.equal(await b.page.evaluate(() => state.gold), 25);
     await b.page.locator('#account-toggle').click();
-    await b.page.screenshot({ path: path.join(base, 'preview/account-import-verified.png') });
+    await b.page.screenshot({ path: path.join(process.env.TEST_SCREENSHOT_DIR || path.join(base, 'preview'), 'account-import-verified.png') });
     console.log('PASS: 첫 로그인 자동 가져오기, 기존 계정 가져오기 취소/실패/성공, 원본과 계정 백업 유지, 서버 복원');
     await b.page.locator('#account-logout').click();
     await b.page.waitForFunction(() => document.getElementById('account-status').textContent === '게스트로 플레이 중');

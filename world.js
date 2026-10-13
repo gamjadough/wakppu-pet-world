@@ -32,7 +32,7 @@ class PetWorld {
       element.innerHTML = '<span class="pet-shadow"></span><span class="pet-sprite"><span class="pet-ear ear-left"></span><span class="pet-ear ear-right"></span><span class="pet-body"><span class="pet-eyes"></span><span class="pet-cheeks"></span><span class="pet-mouth"></span><span class="pet-belly"></span></span><span class="pet-foot foot-left"></span><span class="pet-foot foot-right"></span></span><span class="pet-name"></span><span class="pet-rest">zzZ</span>';
       element.querySelector(".pet-name").textContent = pet.name;
       this.layer.append(element);
-      const actor = { index: pet.index, name: pet.name, element, x: this.width * (.27 + slot * .23), y: this.height * (.5 + (slot % 2) * .16), angle: .8 + slot * 2, speed: 32 + (pet.index % 7) * 5 + slot * 8, changeIn: 2 + slot, rest: 0 };
+      const actor = { index: pet.index, name: pet.name, element, x: this.width * (.27 + slot * .23), y: this.height * (.5 + (slot % 2) * .16), angle: .8 + slot * 2, speed: 32 + (pet.index % 7) * 5 + slot * 8, changeIn: 2 + slot, rest: 0, playIn: 0, socialReadyAt: 0 };
       // 저장된 싸움을 복원할 때 두 참가자가 함께 보이도록 배치합니다.
       const opponent = this.rules.isFighting?.(pet.index)
         ? [...this.actors.values()].find(a => this.rules.isFighting?.(a.index)) : null;
@@ -71,6 +71,7 @@ class PetWorld {
     const fighting = this.rules.isFighting?.(actor.index) || false;
     actor.element.classList.toggle("resting", !fighting && actor.rest > 0);
     actor.element.classList.toggle("fighting", fighting);
+    actor.element.classList.toggle("playing", !fighting && actor.playIn > 0);
     actor.element.setAttribute("aria-label", fighting ? `${actor.name} 싸움 중재하기` : `${actor.name} 정보 보기`);
   }
   frame(time) {
@@ -79,6 +80,7 @@ class PetWorld {
     this.lastFrame = time;
     if (!document.hidden) {
       for (const actor of this.actors.values()) {
+        actor.playIn = Math.max(0, actor.playIn - dt);
         if (this.rules.isFighting?.(actor.index)) continue;
         actor.changeIn -= dt;
         if (actor.rest > 0) actor.rest = Math.max(0, actor.rest - dt);

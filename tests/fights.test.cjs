@@ -18,10 +18,13 @@ const { pathToFileURL } = require('node:url');
   }
   async function meet() {
     await page.evaluate(() => {
+      window.encounterRandom = Math.random; Math.random = () => 0;
+      for (const a of world.actors.values()) a.socialReadyAt = 0;
       const actors = [...world.actors.values()];
       actors.forEach((a, i) => { a.x = world.width * (i < 2 ? .4 : .8); a.y = world.height * .5; a.rest = 100; world.paint(a); });
     });
     await page.waitForTimeout(120);
+    await page.evaluate(() => { Math.random = window.encounterRandom; });
   }
   async function inventoryClick(selector) {
     if (!(await page.locator('#inventory-panel').isVisible())) await page.locator('.world-nav [data-menu="inventory-panel"]').click();
@@ -45,7 +48,7 @@ const { pathToFileURL } = require('node:url');
     assert.equal(await page.locator('#income').textContent(), '4 G/s');
     await page.locator('[data-world-pet="0"]').click();
     assert.deepEqual((await state()).fights, []);
-    assert.equal(await page.locator('#income').textContent(), '6.2 G/s');
+    assert.equal(await page.locator('#income').textContent(), '6.7 G/s');
     assert.equal(await page.locator('#pet-info').isVisible(), false);
     assert.equal(await page.locator('#fight-status').isVisible(), false);
     await meet();
@@ -79,7 +82,7 @@ const { pathToFileURL } = require('node:url');
     page.once('dialog', d => d.accept());
     await inventoryClick('[data-release="0"]');
     assert.deepEqual((await state()).fights, []);
-    assert.equal(await page.locator('#income').textContent(), '7 G/s');
+    assert.equal(await page.locator('#income').textContent(), '7.7 G/s');
     await seed({ pets: [0, 1, 2, 3], fights: [[0, 1]] });
     await inventoryClick('[data-equip="3"]');
     assert.deepEqual((await state()).fights, [[0, 1]], '비참가 펫 교체 시 싸움 유지');

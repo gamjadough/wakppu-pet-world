@@ -174,3 +174,45 @@
 
 /* 관리 메뉴를 사용하는 동안 계정 버튼이 닫기 조작을 가리지 않게 합니다. */
 .world-game:has(#menu-panel:not([hidden])) .account-toggle{visibility:hidden}
+/* v0.2 작은 정원: 펫 생활 공간을 중심으로 한 따뜻한 그림책 로비 */
+.world-game{background:#f1ebdf;color:#4c5948}
+.world-header{background:#faf5e9;border-bottom-color:#ded6c2;box-shadow:none}
+.brand h1{font-size:24px;color:#4b594a}.brand .eyebrow{color:#ac8061;font-size:9px;letter-spacing:2px}
+.brand-mark{background:#c6cf95;border-color:#87986b;border-radius:46% 48% 38% 40%;box-shadow:inset -6px -5px #a8ba84}
+.wallet{background:#eee8d8;border-color:#ddd3bc}.wallet>div+div{border-color:#ddd3bc}
+.world-shell{border:7px solid #fff7e7;border-radius:34px;box-shadow:0 5px #c5c7a8,0 20px 48px #77775d18}
+.world-caption{top:28px;left:32px;right:28px;align-items:flex-start}
+.world-caption h2{font-size:34px;color:#465d43;letter-spacing:-1.5px}
+.world-caption .eyebrow{color:#788f66;font-size:9px;letter-spacing:2.5px}
+.world-caption p{display:block;font-size:12px;color:#647e55;margin-top:4px}
+.garden-controls{display:flex;gap:8px;align-items:center;pointer-events:auto;flex-wrap:wrap;justify-content:flex-end;max-width:340px}
+.garden-controls button{font-size:12px;background:#fff6e2!important;border-color:#c8c5a2!important;color:#68714d!important;min-height:44px;box-shadow:0 3px #c8c7a6;padding:6px 12px}
+.world-badge{background:#fff7e2;border-color:#d2c7a9;color:#7c7955;white-space:nowrap}
+.tree{background:#789a69;box-shadow:inset -15px -17px #65895f,0 15px 0 -3px #7c966633}.tree:after{background:#97b97b}.tree-a{top:20%;left:3%;scale:.9}.tree-b{top:6%;right:3%;scale:.9}.tree-c{bottom:12%;right:2%}.tree-d{bottom:10%;left:7%}.tree-e{top:14%;right:40%;scale:.6}
+.world-sign{right:10%;top:39%;background:#b68c66;border-color:#927452;font-size:13px;text-align:center;transform:rotate(-4deg)}.world-sign small{display:block;font-size:8px;margin:0;color:#fff0cb}
+.world-nav{background:#faf2e1;border-color:#ded4bb;box-shadow:0 5px #c9c1a6,0 12px 28px #82745e16}
+.world-nav button{background:#f1e8d4;border-color:#d4c9b0;color:#6c6b4e;box-shadow:0 3px #d0c5ac}
+.world-game .world-nav button[aria-expanded=true]{background:#7a8f68;border-color:#667c57;color:#fff8e7;box-shadow:0 3px #586a4d}
+#menu-panel{background:#fff9ed;border-color:#e0d5bd;box-shadow:0 20px 60px #534d3633}.menu-heading{background:#f1e8d5;border-color:#dfd4bc}
+.world-game #menu-backdrop{background:#4b503c38}
+.world-empty{background:#fffae9ed;border-color:#e9dfc3;box-shadow:0 12px 40px #59704320}
+.world-empty button{background:#87996b;color:#fff8e6;border-color:#6e8056;box-shadow:0 3px #687951}
+.world-game .garden-goal{position:absolute;bottom:18px;left:24px;z-index:1200;max-width:calc(100% - 48px);background:#fffae9df;border-color:#d0c6a7;box-shadow:0 3px #bdba99;color:#7d7650;font-size:12px;min-height:44px;padding:8px 16px;border-radius:15px}
+.map-hint{left:auto;right:24px;transform:none;bottom:25px;background:transparent;color:#64805b;font-size:10px}
+.world-game .fight-status{bottom:77px;box-shadow:0 3px #dab086;border-radius:14px}
+.playing .pet-sprite{animation:pet-play .5s ease-in-out infinite}.playing .pet-rest{display:none}.playing:after{content:'♥';position:absolute;top:-17px;right:5px;color:#ce8a84;font-size:24px;text-shadow:0 2px #fff6e6;pointer-events:none}.playing .pet-name{background:#fff2e1;border-color:#e5b9a3}
+@keyframes pet-play{50%{margin-top:-9px;margin-left:3px}}
+.garden-fireflies{position:absolute;inset:0;pointer-events:none;opacity:0;z-index:2}.garden-fireflies i{position:absolute;left:24%;top:35%;width:5px;height:5px;border-radius:50%;background:#ffe3a0;box-shadow:0 0 12px 4px #ffe3a044;animation:firefly 4s ease-in-out infinite}.garden-fireflies i:nth-child(2){left:53%;top:68%;animation-delay:1s}.garden-fireflies i:nth-child(3){left:82%;top:42%;animation-delay:2s}.garden-fireflies i:nth-child(4){left:36%;top:80%;animation-delay:3s}
+@keyframes firefly{50%{opacity:.2;transform:translateY(-15px)}}
+[data-scene=dusk]{background:#e7e3e9}.world-game[data-scene=dusk] .garden-terrain{filter:hue-rotate(20deg) saturate(.55) brightness(.8)}
+[data-scene=dusk] .map-decorations{filter:saturate(.6) brightness(.82)}
+[data-scene=dusk] .garden-fireflies{opacity:1}[data-scene=dusk] .world-shell{border-color:#f1e8dd;box-shadow:0 5px #aaa8ae,0 20px 48px #554c6d24}
+[data-scene=dusk] .house-window{fill:#ffe0a1}.personality{min-height:0!important;margin-bottom:7px;color:#9b8164!important;font-size:10px!important}
+.guide-intro{padding:8px 0 18px}.guide-intro h3{font-size:21px;line-height:1.4;margin:10px 0;color:#5c7153}.guide-intro p,.guide-row p,.guide-note p{font-size:13px;line-height:1.7;color:#7f856d}.guide-row{padding:12px 0;border-top:1px solid #e4dcc6}.guide-row b{font-size:14px;color:#867650}.guide-note{padding:15px;background:#eeeeda;border-radius:13px;margin:12px 0}.guide-note strong{font-size:14px;color:#657d57}
+@media(min-width:1900px){.world-layout{inset:112px 3vw 128px}.world-caption h2{font-size:44px}.world-caption{top:36px;left:40px;right:36px}.world-caption p{font-size:14px}.garden-controls{max-width:none;gap:12px}.garden-controls button{padding:8px 18px}.world-sign{font-size:18px}}
+@media(max-width:1000px){.brand h1{font-size:19px}.world-caption{top:16px;left:18px;right:18px}.world-caption h2{font-size:26px}.garden-controls{max-width:190px;gap:6px}.garden-controls .world-badge{flex-basis:100%;text-align:center}.map-hint{display:none}}
+@media(max-width:700px){.brand h1{font-size:14px}.brand .eyebrow{font-size:7px;letter-spacing:.7px}.world-shell{border-width:4px;border-radius:24px}.world-caption{top:13px;left:13px;right:13px}.world-caption h2{font-size:23px;letter-spacing:-1px}.world-caption .eyebrow{font-size:7px;letter-spacing:1px}.world-caption p{font-size:9px;max-width:150px;line-height:1.5}.garden-controls{max-width:118px;gap:5px}.garden-controls button{font-size:9px;padding:3px 6px;min-height:44px}.garden-controls .world-badge{font-size:9px;padding:3px 8px}.world-sign{display:none}.tree-a{scale:.55}.tree-b{scale:.55}.tree-e{display:none}.world-game .garden-goal{left:12px;bottom:10px;max-width:calc(100% - 24px);font-size:10px;padding:6px 10px}.world-game .fight-status{bottom:65px;font-size:10px}.world-caption p{display:block}.guide-intro h3{font-size:19px}}
+@media(max-height:500px) and (orientation:landscape){.world-caption{top:7px;left:14px;right:14px}.world-caption h2{font-size:20px}.world-caption .eyebrow,.world-caption p{display:none}.garden-controls{max-width:none;flex-wrap:nowrap}.garden-controls .world-badge{flex-basis:auto}.garden-controls button{min-height:44px}.world-game .garden-goal{bottom:5px;left:12px;min-height:44px;font-size:10px}.world-game .fight-status{bottom:54px}.world-sign{display:none}}
+@media(prefers-reduced-motion:reduce){.playing .pet-sprite,.garden-fireflies i{animation:none!important}}
+@media(max-width:700px){.account-toggle{top:auto;bottom:calc(114px + env(safe-area-inset-bottom));right:20px;min-height:44px;font-size:11px}.tree-b{display:none}}
+@media(max-height:500px) and (orientation:landscape){.account-toggle{top:auto;bottom:94px;right:20px;font-size:10px;min-height:44px}}
