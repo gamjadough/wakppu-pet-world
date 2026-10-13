@@ -8,6 +8,21 @@
   let client, userId = null, revision = 0, ready = false, conflicted = false;
   let inFlight = null, lastUploaded = "", cloudMessage = "";
   let switching = false;
+  let saveTimer = null;
+  const pendingKey = () => `wakppu-v01:account-pending:${userId}`;
+  function rememberPending() {
+    if (!userId || !ready || switching || conflicted) return;
+    try {
+      const state = game.snapshot();
+      if (JSON.stringify(state) === lastUploaded) localStorage.removeItem(pendingKey());
+      else localStorage.setItem(pendingKey(), JSON.stringify({ revision, state }));
+    } catch { status("브라우저 백업 실패 · 서버 자동 저장을 확인해 주세요."); }
+  }
+  function scheduleSave() {
+    if (saveTimer || !ready || switching || conflicted) return;
+    // 수익이 계속 변해도 타이머를 뒤로 미루지 않습니다.
+    saveTimer = setTimeout(() => { saveTimer = null; upload(); }, 1000);
+  }
 
   function hasProgress(save) {
     return !!(save.pets.length || save.gold || save.cracks || save.discovered.length || save.stock.some(Boolean));
@@ -41,7 +56,7 @@
       conflicted = true; ready = false; pause(true); panel(true);
       status("다른 브라우저에 새 기록이 있어요. 서버 기록을 다시 불러오세요.");
     } else {
-      status("서버 저장 실패 · 이 브라우저에만 보관 중입니다. 연결 후 다시 저장하세요.");
+      status("서버 저장 실패 · 브라우저에 보관 중 · 자동 재시도합니다.");
     }
   }
 
@@ -49,6 +64,7 @@
     if (inFlight) return inFlight;
     if (!client || !userId || !ready || conflicted || switching) return false;
     const owner = userId, payload = game.snapshot(), encoded = JSON.stringify(payload);
+    rememberPending();
     if (encoded === lastUploaded) { status("계정 서버 저장 완료"); return true; }
     status("계정 서버에 저장 중…");
     inFlight = (async () => {
@@ -60,7 +76,11 @@
         status(JSON.stringify(game.snapshot()) === encoded ? "계정 서버 저장 완료" : "변경사항 저장 대기 중");
         return true;
       } catch (error) { if (owner === userId) fail(error); return false; }
-      finally { inFlight = null; }
+      finally {
+        inFlight = null;
+        rememberPending();
+        if (owner === userId && JSON.stringify(game.snapshot()) !== encoded && lastUploaded === encoded) scheduleSave();
+      }
     })();
     return inFlight;
   }
@@ -78,6 +98,11 @@
       const { data, error } = await client.from("game_saves").select("state, revision").eq("user_id", userId).maybeSingle();
       if (error) throw error;
       if (data && data.state?.version !== 1) throw new Error("Unsupported save version");
+      let pending = null;
+      if (!force) {
+        try { pending = JSON.parse(localStorage.getItem(pendingKey())); } catch { /* 손상된 백업은 서버 기록으로 시작합니다. */ }
+      }
+      if (!Number.isSafeInteger(pending?.revision) || pending.revision < 0 || pending.state?.version !== 1) pending = null;
       let incoming;
       if (data) {
         revision = Number(data.revision); incoming = data.state;
@@ -89,8 +114,16 @@
         // 첫 계정 저장은 기존 브라우저 기록을 그대로 이어갑니다. 게스트 원본은 유지합니다.
         incoming = guest;
       }
+      if (pending && pending.revision === revision) incoming = pending.state;
+      else if (pending && JSON.stringify(pending.state) !== JSON.stringify(data?.state)) {
+        game.useSave(incoming, userId);
+        switching = false;
+        fail(new Error("SAVE_CONFLICT"));
+        return;
+      }
       game.useSave(incoming, userId);
       ready = true; switching = false;
+      rememberPending();
       status(data ? "계정 진행상태 불러오기 완료" : "첫 계정 저장 준비 중…");
       await upload();
       if (ready) pause(false);
@@ -116,7 +149,10 @@
     changed() {
       if (!userId) return;
       const dirty = ready && JSON.stringify(game.snapshot()) !== lastUploaded;
-      if (dirty && !inFlight) status("변경사항 저장 대기 중 · 이 브라우저에 보관됨");
+      if (dirty && !switching && !conflicted) {
+        rememberPending(); scheduleSave();
+        if (!inFlight) status("자동 저장 대기 중 · 이 브라우저에 보관됨");
+      }
       else el("save-status").textContent = cloudMessage;
     }
   };
@@ -140,7 +176,7 @@
       game.useSave(guest, userId);
       status("기존 브라우저 기록 연결 완료 · 계정 서버 저장 완료");
     } catch (error) { fail(error); }
-    finally { switching = false; pause(conflicted); guestInfo(); }
+    finally { switching = false; rememberPending(); pause(conflicted); guestInfo(); }
   });
   el("account-reload").addEventListener("click", async () => {
     if (!client || !userId || switching) return;
@@ -199,9 +235,10 @@
         if (session?.user && session.user.id !== userId) setTimeout(() => loadUser(session.user), 0);
         else if (event === "SIGNED_OUT" && userId) setTimeout(guestMode, 0);
       });
-      setInterval(upload, 10000);
+      setInterval(upload, 5000);
       window.addEventListener("online", upload);
       document.addEventListener("visibilitychange", () => { if (document.hidden) upload(); });
+      window.addEventListener("pagehide", () => { rememberPending(); upload(); });
       window.addEventListener("beforeunload", event => {
         if (userId && JSON.stringify(game.snapshot()) !== lastUploaded) { event.preventDefault(); event.returnValue = ""; }
       });

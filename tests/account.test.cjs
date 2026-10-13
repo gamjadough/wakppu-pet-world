@@ -3,12 +3,13 @@ const { chromium } = require(process.env.TEST_PLAYWRIGHT_MODULE || 'playwright')
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const { execFileSync } = require('node:child_process');
 const base = path.resolve(__dirname, '..');
 const blank = () => ({ version: 1, gold: 0, pets: [], equipped: [], discovered: [], stock: [0,0,0,0], selected: 0, cracks: 0 });
 
 (async () => {
   const browser = await chromium.launch({ channel: 'chrome', headless: true });
-  let row = null, failWrites = false;
+  let row = null, failWrites = false, writeDelay = 0;
   const errors = [], dialogs = [];
   let acceptDialogs = true;
   async function context(user) {
@@ -18,11 +19,17 @@ const blank = () => ({ version: 1, gold: 0, pets: [], equipped: [], discovered: 
       const pathname = new URL(route.request().url()).pathname;
       const file = path.join(base, pathname === '/' ? 'index.html' : pathname.slice(1));
       if (!file.startsWith(base + path.sep)) return route.fulfill({ status: 403 });
-      try { return route.fulfill({ body: fs.readFileSync(file), contentType: file.endsWith('.js') ? 'text/javascript' : file.endsWith('.css') ? 'text/css' : 'text/html' }); }
+      try {
+        // 다른 작업의 미완성 게임 편집과 분리하여 배포된 게임 + 수정 계정 코드도 검사할 수 있습니다.
+        const body = process.env.TEST_COMMITTED_GAME === '1' && ['index.html', 'style.css', 'game.js', 'world.js'].includes(path.basename(file))
+          ? execFileSync('git', ['show', `HEAD:${path.basename(file)}`], { cwd: base }) : fs.readFileSync(file);
+        return route.fulfill({ body, contentType: file.endsWith('.js') ? 'text/javascript' : file.endsWith('.css') ? 'text/css' : 'text/html' });
+      }
       catch { return route.fulfill({ status: 404 }); }
     });
     await ctx.exposeBinding('fakeCloud', async (_, action, payload) => {
       if (action === 'load') return { data: row && JSON.parse(JSON.stringify(row)), error: null };
+      if (writeDelay) await new Promise(resolve => setTimeout(resolve, writeDelay));
       if (failWrites) return { error: { message: 'network failed' } };
       if (payload.p_revision !== (row?.revision || 0)) return { error: { message: 'SAVE_CONFLICT' } };
       row = { state: payload.p_state, revision: (row?.revision || 0) + 1 };
@@ -117,6 +124,61 @@ const blank = () => ({ version: 1, gold: 0, pets: [], equipped: [], discovered: 
     assert.equal(await b.page.evaluate(() => state.gold), 25);
     assert.equal(await b.page.evaluate(() => JSON.parse(localStorage.getItem('wakppu-v01')).gold), 25);
     console.log('PASS: 서버 오류/브라우저 백업/재시도, 로그아웃 시 게스트 기록 분리');
+
+    await a.ctx.close(); await b.ctx.close();
+    const c = await context('user-a');
+    await c.page.evaluate(() => { state.gold = 200; save(); });
+    await c.page.waitForFunction(() => document.getElementById('cloud-status').textContent === '계정 서버 저장 완료');
+    assert.equal(row.state.gold, 200, '수동 버튼 없이 변경 후 자동 저장');
+    await c.page.reload();
+    await c.page.waitForFunction(() => !gamePaused);
+    assert.equal(await c.page.evaluate(() => state.gold), 200);
+
+    // 전송 전 즉시 새로고침: 서버 버전이 같으면 미전송 기록을 복구하고 전송합니다.
+    await c.page.evaluate(() => { state.gold = 210; save(); });
+    await c.page.reload();
+    await c.page.waitForFunction(() => document.getElementById('cloud-status').textContent === '계정 서버 저장 완료');
+    assert.equal(await c.page.evaluate(() => state.gold), 210);
+    assert.equal(row.state.gold, 210);
+
+    failWrites = true;
+    await c.page.evaluate(() => { state.gold = 220; save(); });
+    await c.page.waitForFunction(() => document.getElementById('cloud-status').textContent.includes('서버 저장 실패'));
+    await c.page.reload();
+    await c.page.waitForFunction(() => !gamePaused);
+    assert.equal(await c.page.evaluate(() => state.gold), 220, '실패 후 재접속에도 미전송 기록 유지');
+    failWrites = false;
+    await c.page.waitForFunction(() => document.getElementById('cloud-status').textContent === '계정 서버 저장 완료');
+    assert.equal(row.state.gold, 220, '연결 복구 후 버튼 없이 자동 재시도');
+    // 서버 저장은 성공했지만 응답 확인 전 종료된 경우에도 거짓 충돌을 만들지 않습니다.
+    await c.page.evaluate(record => localStorage.setItem('wakppu-v01:account-pending:user-a', JSON.stringify(record)), { revision: row.revision - 1, state: row.state });
+    await c.page.reload();
+    await c.page.waitForFunction(() => document.getElementById('cloud-status').textContent === '계정 서버 저장 완료');
+    assert.equal(await c.page.evaluate(() => state.gold), 220);
+    assert.equal(await c.page.evaluate(() => localStorage.getItem('wakppu-v01:account-pending:user-a')), null);
+
+    // 요청 처리 중 새 변경이 생기면 후속 자동 저장을 빠뜨리지 않습니다.
+    writeDelay = 800;
+    await c.page.evaluate(() => { state.gold = 230; save(); });
+    await c.page.waitForFunction(() => document.getElementById('cloud-status').textContent === '계정 서버에 저장 중…');
+    await c.page.evaluate(() => { state.gold = 240; save(); });
+    await c.page.waitForFunction(() => document.getElementById('cloud-status').textContent === '계정 서버 저장 완료');
+    assert.equal(row.state.gold, 240);
+    writeDelay = 0;
+
+    // 다른 기기에서 서버 버전이 바뀌면 오래된 미전송 기록은 자동 덮어쓰지 않습니다.
+    await c.page.evaluate(() => { state.gold = 250; save(); });
+    row = { state: { ...row.state, gold: 260 }, revision: row.revision + 1 };
+    await c.page.reload();
+    await c.page.waitForFunction(() => document.getElementById('cloud-status').textContent.includes('다른 브라우저'));
+    assert.equal(row.state.gold, 260);
+    assert.equal(await c.page.evaluate(() => gamePaused), true);
+    assert.equal(await c.page.evaluate(() => JSON.parse(localStorage.getItem('wakppu-v01:account-pending:user-a')).state.gold), 250);
+    await c.page.locator('#account-reload').click();
+    await c.page.waitForFunction(() => !gamePaused);
+    assert.equal(await c.page.evaluate(() => state.gold), 260);
+    assert.equal(await c.page.evaluate(() => localStorage.getItem('wakppu-v01:account-pending:user-a')), null);
+    console.log('PASS: 버튼 없는 자동 저장, 즉시 재접속 복구, 서버 오류 후 재접속/자동 재시도, 전송 중 변경, 다른 기기 충돌 보호');
     assert.deepEqual(errors, []);
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });
