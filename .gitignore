@@ -1,5 +1,6 @@
 # 개인 브라우저 데이터와 개발 도구 산출물은 추적하지 않습니다.
 node_modules/
+supabase/.temp/
 *.log
 .DS_Store
 Thumbs.db
