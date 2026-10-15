@@ -11,21 +11,10 @@ const BALLS = [
   { name: "네뷸라 왁뿌볼", price: 300, clicks: 30, odds: [20, 35, 28, 14, 3] },
   { name: "태양 왁뿌볼", price: 1500, clicks: 45, odds: [10, 25, 35, 23, 7] }
 ];
-const PETS = [
-  { name: "새싹뿌", rarity: 0, rate: 1, bonus: 0.2, power: 0, ability: "광합성 · 생산 +0.2 G/s" },
-  { name: "돌멩뿌", rarity: 0, rate: 1, bonus: 0, power: 1, ability: "단단한 손 · 클릭 위력 +1" },
-  { name: "물방뿌", rarity: 1, rate: 3, bonus: 1, power: 0, ability: "물의 흐름 · 생산 +1 G/s" },
-  { name: "바람뿌", rarity: 1, rate: 3, bonus: 0, power: 2, ability: "질풍 · 클릭 위력 +2" },
-  { name: "달빛뿌", rarity: 2, rate: 8, bonus: 3, power: 0, ability: "달빛 수확 · 생산 +3 G/s" },
-  { name: "번개뿌", rarity: 2, rate: 8, bonus: 0, power: 3, ability: "전격 · 클릭 위력 +3" },
-  { name: "별무리뿌", rarity: 3, rate: 20, bonus: 8, power: 0, ability: "별의 축복 · 생산 +8 G/s" },
-  { name: "용암뿌", rarity: 3, rate: 20, bonus: 0, power: 5, ability: "화산의 힘 · 클릭 위력 +5" },
-  { name: "태양뿌", rarity: 4, rate: 60, bonus: 25, power: 0, ability: "황금 햇살 · 생산 +25 G/s" },
-  { name: "우주뿌", rarity: 4, rate: 60, bonus: 0, power: 8, ability: "차원 균열 · 클릭 위력 +8" }
-];
+const PETS = [{"name":"새싹뿌","rarity":0,"rate":1,"bonus":0.2,"power":0,"personality":0,"ability":"광합성 · 생산 +0.2 G/s"},{"name":"돌멩뿌","rarity":0,"rate":1,"bonus":0,"power":1,"personality":1,"ability":"단단한 손 · 클릭 위력 +1"},{"name":"물방뿌","rarity":1,"rate":3,"bonus":1,"power":0,"personality":2,"ability":"물의 흐름 · 생산 +1 G/s"},{"name":"바람뿌","rarity":1,"rate":3,"bonus":0,"power":2,"personality":3,"ability":"질풍 · 클릭 위력 +2"},{"name":"달빛뿌","rarity":2,"rate":8,"bonus":3,"power":0,"personality":0,"ability":"달빛 수확 · 생산 +3 G/s"},{"name":"번개뿌","rarity":2,"rate":8,"bonus":0,"power":3,"personality":3,"ability":"전격 · 클릭 위력 +3"},{"name":"별무리뿌","rarity":3,"rate":20,"bonus":8,"power":0,"personality":2,"ability":"별의 축복 · 생산 +8 G/s"},{"name":"용암뿌","rarity":3,"rate":20,"bonus":0,"power":5,"personality":1,"ability":"화산의 힘 · 클릭 위력 +5"},{"name":"태양뿌","rarity":4,"rate":60,"bonus":25,"power":0,"personality":3,"ability":"황금 햇살 · 생산 +25 G/s"},{"name":"우주뿌","rarity":4,"rate":60,"bonus":0,"power":8,"personality":0,"ability":"차원 균열 · 클릭 위력 +8"},{"name":"버섯뿌","rarity":0,"rate":1,"bonus":0.1,"power":0,"personality":2,"ability":"포근한 포자 · 생산 +0.1 G/s"},{"name":"이슬뿌","rarity":1,"rate":3,"bonus":0.5,"power":1,"personality":0,"ability":"새벽 물방울 · 생산 +0.5 G/s · 클릭 +1"},{"name":"서리뿌","rarity":2,"rate":8,"bonus":1,"power":2,"personality":1,"ability":"반짝 서리 · 생산 +1 G/s · 클릭 +2"},{"name":"오로라뿌","rarity":3,"rate":20,"bonus":4,"power":3,"personality":3,"ability":"하늘 커튼 · 생산 +4 G/s · 클릭 +3"},{"name":"은하뿌","rarity":4,"rate":60,"bonus":10,"power":5,"personality":2,"ability":"별의 강 · 생산 +10 G/s · 클릭 +5"}]; // generated from pets.js
 const $ = id => document.getElementById(id);
 const format = n => new Intl.NumberFormat("ko-KR", { maximumFractionDigits: 1, notation: n >= 1000000 ? "compact" : "standard" }).format(n);
-const defaults = () => ({ version: 1, gold: 0, pets: [], equipped: [], discovered: [], stock: [0, 0, 0, 0], selected: 0, cracks: 0, soundEnabled: true, fights: [], peaceUntil: {}, fightEndsAt: 0, scene: "day" });
+const defaults = () => ({ version: 1, catalogVersion: 2, gold: 0, pets: [], equipped: [], discovered: [], stock: [0, 0, 0, 0], selected: 0, cracks: 0, soundEnabled: true, fights: [], peaceUntil: {}, fightEndsAt: 0, scene: "day" });
 const integer = (v, max) => Number.isInteger(v) && v >= 0 && v <= max;
 let storageOK = true;
 let activeSaveKey = SAVE_KEY;
@@ -80,11 +69,17 @@ let lastTick = performance.now();
 
 // 상태 계산과 화면 갱신을 분리합니다. 인벤토리 번호로 같은 종류도 구분합니다.
 function equippedPets() { return state.equipped.map(index => PETS[state.pets[index]]); }
+function petRelationship(a,b) {
+  if(a===b) return "neutral";
+  const left=PETS[a].personality,right=PETS[b].personality;
+  if(left===1||right===1) return left===right?"neutral":"bicker";
+  return left===2||right===2||left!==right?"friends":"neutral";
+}
 function isFighting(index) { return state.fights.some(pair => pair.includes(index)); }
 function petIncome(index) {
   if (isFighting(index)) return 0;
   const id = state.pets[index], p = PETS[id];
-  const friend = state.equipped.some(other => other !== index && !isFighting(other) && relationship(id, state.pets[other]) === "friends");
+  const friend = state.equipped.some(other => other !== index && !isFighting(other) && petRelationship(id, state.pets[other]) === "friends");
   return (p.rate + p.bonus) * (friend ? 1.1 : 1);
 }
 function income() { return state.equipped.reduce((sum, index) => sum + petIncome(index), 0); }
@@ -109,7 +104,7 @@ function startFight(a, b) {
   if (gamePaused) return;
   if (a === b || !state.equipped.includes(a) || !state.equipped.includes(b) || isFighting(a) || isFighting(b) ||
       state.peaceUntil[a] > Date.now() || state.peaceUntil[b] > Date.now() ||
-      relationship(state.pets[a], state.pets[b]) !== "bicker") return;
+      petRelationship(state.pets[a], state.pets[b]) !== "bicker") return;
   accrueGold(); // 만난 시각까지 이전 수익으로 정산한 다음 두 펫의 생산을 멈춥니다.
   state.fights.push([a, b]);
   state.fightEndsAt = Date.now() + 20000;
@@ -136,7 +131,7 @@ function meetPets(a, b) {
   const left = world.actors.get(a), right = world.actors.get(b);
   if (!left || !right || left.socialReadyAt > Date.now() || right.socialReadyAt > Date.now()) return;
   left.socialReadyAt = right.socialReadyAt = Date.now() + 12000;
-  const relation = relationship(state.pets[a], state.pets[b]);
+  const relation = petRelationship(state.pets[a], state.pets[b]);
   if (relation === "friends") {
     left.playIn = right.playIn = 2.5;
     left.rest = right.rest = 2.5;
@@ -176,7 +171,7 @@ function renderStats() {
   if (selectedWorldPet !== null && state.equipped.includes(selectedWorldPet)) $("info-rate").textContent = `${format(petIncome(selectedWorldPet))} G/s`;
   const bonus = Math.max(0, friendshipBonus());
   $("team-summary").textContent = bonus > 0 ? `친구의 응원 +${format(bonus)} G/s` : "잘 맞는 친구를 함께 장착해 보세요";
-  $("garden-goal").textContent = state.pets.length === 0 ? "첫 친구를 만나러 가기" : state.equipped.length < 3 ? `정원 친구 ${state.equipped.length}/3 · 장착하기` : `도감 ${state.discovered.length}/10 · 새 친구 만나기`;
+  $("garden-goal").textContent = state.pets.length === 0 ? "첫 친구를 만나러 가기" : state.equipped.length < 3 ? `정원 친구 ${state.equipped.length}/3 · 장착하기` : `도감 ${state.discovered.length}/${PETS.length} · 새 친구 만나기`;
   $("fight-status").hidden = state.fights.length === 0;
   $("fight-status").textContent = `싸우는 중 ${state.fights.length * 2}마리 · 클릭해 중재 · 최대 20초`;
   $("sound-toggle").textContent = state.soundEnabled ? "소리 켜짐" : "소리 꺼짐";
@@ -204,7 +199,7 @@ function petCard(petId, index, codex = false) {
   const p = PETS[petId];
   const known = !codex || state.discovered.includes(petId);
   const equipped = !codex && state.equipped.includes(index);
-  return `<article class="pet-card ${equipped ? "equipped" : ""} ${known ? "" : "unknown"}" style="--rarity:${COLORS[p.rarity]}">${codex ? "" : `<label class="pet-selection"><input type="checkbox" data-pet-select="${index}" aria-label="${p.name} ${index + 1}번 방생 선택" ${selectedPets.has(index) ? "checked" : ""} ${equipped ? "disabled" : ""}>${equipped ? "장착 중" : "방생 선택"}</label>`}<div class="pet-art" aria-hidden="true"></div><span class="rarity">${RARITIES[p.rarity]}</span><h3>${known ? p.name : "???"}</h3><p class="rate">${known ? `${format(p.rate + p.bonus)} G/s` : "미발견"}</p><p class="personality">${known ? PERSONALITIES[PET_PERSONALITY[petId]] + " 성격" : "성격 미발견"}</p><p>${known ? p.ability : "부화하여 비밀을 발견하세요"}</p>${codex ? "" : `<button data-equip="${index}" >${equipped ? "장착 해제" : state.equipped.length >= SLOT_LIMIT ? "교체 장착" : "장착하기"}</button><button data-release="${index}" class="release">방생 · +${format(p.rate + p.bonus)} G</button>`}</article>`;
+  return `<article class="pet-card species-${petId} ${equipped ? "equipped" : ""} ${known ? "" : "unknown"}" style="--rarity:${COLORS[p.rarity]}">${codex ? "" : `<label class="pet-selection"><input type="checkbox" data-pet-select="${index}" aria-label="${p.name} ${index + 1}번 방생 선택" ${selectedPets.has(index) ? "checked" : ""} ${equipped ? "disabled" : ""}>${equipped ? "장착 중" : "방생 선택"}</label>`}<div class="pet-art" aria-hidden="true"></div><span class="rarity">${RARITIES[p.rarity]}</span><h3>${known ? p.name : "???"}</h3><p class="rate">${known ? `${format(p.rate + p.bonus)} G/s` : "미발견"}</p><p class="personality">${known ? PERSONALITIES[PETS[petId].personality] + " 성격" : "성격 미발견"}</p><p>${known ? p.ability : "부화하여 비밀을 발견하세요"}</p>${codex ? "" : `<button data-equip="${index}" >${equipped ? "장착 해제" : state.equipped.length >= SLOT_LIMIT ? "교체 장착" : "장착하기"}</button><button data-release="${index}" class="release">방생 · +${format(p.rate + p.bonus)} G</button>`}</article>`;
 }
 // 정렬은 표시 목록에만 적용합니다. 저장 배열의 번호는 장착·중복 펫을 구분합니다.
 const selectedPets = new Set();
@@ -451,7 +446,7 @@ const world = new PetWorld($("world-map"), $("world-pets"), index => {
   $("info-rarity").textContent = RARITIES[pet.rarity];
   $("info-name").textContent = pet.name;
   $("info-rate").textContent = `${format(petIncome(index))} G/s`;
-  $("info-personality").textContent = `${PERSONALITIES[PET_PERSONALITY[state.pets[index]]]} 성격 · 친구의 응원은 생산 +10%`;
+  $("info-personality").textContent = `${PERSONALITIES[PETS[state.pets[index]].personality]} 성격 · 친구의 응원은 생산 +10%`;
   $("info-ability").textContent = pet.ability;
   $("pet-info").hidden = false;
 }, { isFighting, meet: meetPets });

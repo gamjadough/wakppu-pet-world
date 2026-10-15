@@ -65,6 +65,12 @@
     el("reset").disabled = value;
   }
   function fail(error) {
+    if (String(error?.message || error).includes("UPDATE_REQUIRED")) {
+      conflicted = true; ready = false; pause(true); panel(true);
+      status("새 친구를 불러오려면 페이지를 새로고침해 주세요. 서버 기록은 보관되어 있습니다.");
+      el("cloud-status").hidden = false;
+      return;
+    }
     if (String(error?.message || error).includes("SAVE_CONFLICT")) {
       conflicted = true; ready = false; pause(true); panel(true);
       status("다른 브라우저에 새 기록이 있어요. 서버 기록을 다시 불러오세요.");
@@ -110,7 +116,7 @@
     try {
       const { data, error } = await client.from("game_saves").select("state, revision").eq("user_id", userId).maybeSingle();
       if (error) throw error;
-      if (data && data.state?.version !== 1) throw new Error("Unsupported save version");
+      if (data && (data.state?.version !== 1 || data.state?.catalogVersion > 2)) throw new Error("Unsupported save version");
       let pending = null;
       if (!force) {
         try { pending = JSON.parse(localStorage.getItem(pendingKey())); } catch { /* 손상된 백업은 서버 기록으로 시작합니다. */ }

@@ -19,7 +19,7 @@ const base=path.resolve(__dirname,'..');
       if(offline) return {error:{message:'network unavailable'}};
       try {
         const data=name==='official_leaderboard'?await server.board(user):await server.action(user,params.p_action,params.p_args||{},params.p_revision||0,params.p_request);
-        if(dropNext && name==='official_action' && params.p_action==='buy'){dropNext=false;return {error:{message:'network acknowledgement lost'}};}
+        if(dropNext && name==='official_action_v2' && params.p_action==='buy'){dropNext=false;return {error:{message:'network acknowledgement lost'}};}
         return {data};
       }catch(error){return {error:{message:error.message}};}
     });
@@ -86,6 +86,21 @@ const base=path.resolve(__dirname,'..');
     await page.waitForFunction(()=>document.getElementById('official-retry').hidden);
     assert.equal((await server.action(server.A,'get')).stock[1],3);
     await page.locator('#official-refresh').click();
+    await server.db.query('update wakppu_ranked.players set pets=$1,equipped=$2,discovered=$3,cracks=0,selected=0,revision=revision+1 where user_id=$4',[[10,11,12,13,14],[0,1,2],Array.from({length:15},(_,i)=>i),server.A]);
+    await page.reload();
+    await page.locator('.pet.species-14').waitFor();
+    assert.equal(await page.locator('#official-count').textContent(),'15 / 15');
+    assert.equal(await page.locator('#official-pets .pet').count(),5);
+    assert.match(await page.locator('.pet.species-14').textContent(),/신화.*은하|은하.*신화/s);
+    await page.locator('[data-equip="4"]').click();
+    await page.waitForFunction(()=>document.querySelector('[data-equip="4"]').textContent==='장착 해제');
+    assert.deepEqual((await server.action(server.A,'get')).equipped,[0,1,4]);
+    assert.ok(Math.abs((await server.action(server.A,'get')).income-82.06)<1e-9);
+    await page.locator('#official-ball').click();
+    await page.waitForFunction(()=>document.getElementById('official-progress').value===7);
+    await page.reload();
+    await page.waitForFunction(()=>document.getElementById('official-progress').value===7);
+    await page.waitForFunction(()=>document.getElementById('official-me').textContent.includes('15 / 15'));
     await page.screenshot({path:path.join(base,'preview/official-desktop.png'),fullPage:true});
     const anon=await context(null,390);
     await anon.page.locator('#official-login').waitFor({state:'visible'});

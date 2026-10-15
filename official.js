@@ -1,8 +1,9 @@
 "use strict";
 (() => {
   const $ = id => document.getElementById(`official-${id}`);
-  const names = ['새싹뿌','돌멩뿌','물방뿌','바람뿌','달빛뿌','번개뿌','별무리뿌','용암뿌','태양뿌','우주뿌'];
-  const rates = [1.2,1,4,3,11,8,28,20,85,60], rarities=['일반','희귀','초희귀','영웅','신화'];
+  const PET_CATALOG = [{"name":"새싹뿌","rarity":0,"rate":1,"bonus":0.2,"power":0,"personality":0,"ability":"광합성 · 생산 +0.2 G/s"},{"name":"돌멩뿌","rarity":0,"rate":1,"bonus":0,"power":1,"personality":1,"ability":"단단한 손 · 클릭 위력 +1"},{"name":"물방뿌","rarity":1,"rate":3,"bonus":1,"power":0,"personality":2,"ability":"물의 흐름 · 생산 +1 G/s"},{"name":"바람뿌","rarity":1,"rate":3,"bonus":0,"power":2,"personality":3,"ability":"질풍 · 클릭 위력 +2"},{"name":"달빛뿌","rarity":2,"rate":8,"bonus":3,"power":0,"personality":0,"ability":"달빛 수확 · 생산 +3 G/s"},{"name":"번개뿌","rarity":2,"rate":8,"bonus":0,"power":3,"personality":3,"ability":"전격 · 클릭 위력 +3"},{"name":"별무리뿌","rarity":3,"rate":20,"bonus":8,"power":0,"personality":2,"ability":"별의 축복 · 생산 +8 G/s"},{"name":"용암뿌","rarity":3,"rate":20,"bonus":0,"power":5,"personality":1,"ability":"화산의 힘 · 클릭 위력 +5"},{"name":"태양뿌","rarity":4,"rate":60,"bonus":25,"power":0,"personality":3,"ability":"황금 햇살 · 생산 +25 G/s"},{"name":"우주뿌","rarity":4,"rate":60,"bonus":0,"power":8,"personality":0,"ability":"차원 균열 · 클릭 위력 +8"},{"name":"버섯뿌","rarity":0,"rate":1,"bonus":0.1,"power":0,"personality":2,"ability":"포근한 포자 · 생산 +0.1 G/s"},{"name":"이슬뿌","rarity":1,"rate":3,"bonus":0.5,"power":1,"personality":0,"ability":"새벽 물방울 · 생산 +0.5 G/s · 클릭 +1"},{"name":"서리뿌","rarity":2,"rate":8,"bonus":1,"power":2,"personality":1,"ability":"반짝 서리 · 생산 +1 G/s · 클릭 +2"},{"name":"오로라뿌","rarity":3,"rate":20,"bonus":4,"power":3,"personality":3,"ability":"하늘 커튼 · 생산 +4 G/s · 클릭 +3"},{"name":"은하뿌","rarity":4,"rate":60,"bonus":10,"power":5,"personality":2,"ability":"별의 강 · 생산 +10 G/s · 클릭 +5"}]; // generated from pets.js
+  const names = PET_CATALOG.map(p=>p.name);
+  const rates = PET_CATALOG.map(p=>p.rate+p.bonus), rarities=['일반','희귀','초희귀','영웅','신화'];
   const colors=['#98ac9e','#75b59c','#88a6d0','#b8a0ce','#d6b36c'];
   const balls=['기본 왁뿌볼','오로라 왁뿌볼','네뷸라 왁뿌볼','태양 왁뿌볼'];
   const prices=[0,50,300,1500], limits=[12,20,30,45];
@@ -25,7 +26,7 @@
     $('session').textContent=owner ? (state?.nickname ? `${state.nickname}님의 공식 정원` : '로그인됨 · 기존 정원과 별도로 저장됩니다.') : '로그인하면 어디서든 같은 공식 정원을 이어갈 수 있습니다.';
     if(!active) return;
     $('gold').textContent=`${number(state.gold)} G`; $('income').textContent=`${number(state.income)} G/s`;
-    $('count').textContent=`${state.discovered.length} / 10`; $('slots').textContent=`장착 ${state.equipped.length} / 3`;
+    $('count').textContent=`${state.discovered.length} / ${names.length}`; $('slots').textContent=`장착 ${state.equipped.length} / 3`;
     $('ball-name').textContent=balls[state.selected]; $('ball').dataset.tier=state.selected;
     $('progress').max=limits[state.selected]; $('progress').value=state.cracks;
     $('cracks').textContent=`균열 ${state.cracks} / ${limits[state.selected]}`;
@@ -45,8 +46,8 @@
     const nextPets=JSON.stringify([state.pets,state.equipped,page]);
     if(petKey!==nextPets) {
     const cards=state.pets.slice(page*20,(page+1)*20).map((id,offset)=>{
-      const index=page*20+offset, equipped=state.equipped.includes(index), rarity=Math.floor(id/2);
-      const card=document.createElement('article'); card.className=`pet${equipped?' equipped':''}`;
+      const index=page*20+offset, equipped=state.equipped.includes(index), rarity=PET_CATALOG[id].rarity;
+      const card=document.createElement('article'); card.className=`pet species-${id}${equipped?' equipped':''}`;
       const icon=document.createElement('div'); icon.className='pet-mark'; icon.style.setProperty('--pet-color',colors[rarity]); icon.textContent=names[id][0];
       const name=document.createElement('h3'); name.textContent=names[id];
       const rate=document.createElement('p'); rate.textContent=`${rarities[rarity]} · ${rates[id]} G/s`;
@@ -56,7 +57,8 @@
       release.addEventListener('click',()=>{
         if(confirm(`${names[id]}을 방생할까요? 펫은 사라지며 도감 기록은 유지됩니다.`)) enqueue('release',{index});
       });
-      card.append(icon,name,rate,equip,release); return card;
+      const ability=document.createElement('p'); ability.textContent=PET_CATALOG[id].ability;
+      card.append(icon,name,rate,ability,equip,release); return card;
     });
     if(!cards.length) { const p=document.createElement('p'); p.className='muted'; p.textContent='아직 친구가 없어요. 무료 볼을 깨 보세요.'; cards.push(p); }
     $('pets').replaceChildren(...cards);
@@ -71,7 +73,7 @@
     }
   }
   async function rpc(name,args) {
-    const {data,error}=await client.rpc(name,args);
+    const {data,error}=await client.rpc(name==='official_action'?'official_action_v2':name,args);
     if(error) throw error;
     return data;
   }
@@ -82,10 +84,10 @@
       const data=await rpc('official_leaderboard'); if(generation!==epoch) return;
       $('ranking').replaceChildren(...data.top.map(item=>{
         const row=document.createElement('tr'); if(item.is_me) row.className='me';
-        for(const text of [`${item.rank}위`,item.nickname,`${item.count} / 10`]) {const cell=document.createElement('td');cell.textContent=text;row.append(cell);}return row;
+        for(const text of [`${item.rank}위`,item.nickname,`${item.count} / ${names.length}`]) {const cell=document.createElement('td');cell.textContent=text;row.append(cell);}return row;
       }));
       $('empty').hidden=data.top.length>0;
-      $('me').textContent=data.me?`내 순위 ${data.me.rank}위 · ${data.me.nickname} · ${data.me.count} / 10`:'닉네임을 등록하면 내 순위가 표시됩니다.';
+      $('me').textContent=data.me?`내 순위 ${data.me.rank}위 · ${data.me.nickname} · ${data.me.count} / ${names.length}`:'닉네임을 등록하면 내 순위가 표시됩니다.';
     } catch { notice('랭킹을 불러오지 못했습니다. 새로고침으로 다시 시도해 주세요.'); }
   }
   async function load() {
@@ -110,7 +112,7 @@
       const result=await rpc('official_action',request);
       if(generation!==epoch) return;
       state=result;clearPending();notice('');render();
-      if(request.p_action==='tap' && result.hatched!==null) $('result').textContent=`${rarities[Math.floor(result.hatched/2)]} · ${names[result.hatched]} 부화! 인벤토리에서 장착해 보세요.`;
+      if(request.p_action==='tap' && result.hatched!==null) $('result').textContent=`${rarities[PET_CATALOG[result.hatched].rarity]} · ${names[result.hatched]} 부화! 인벤토리에서 장착해 보세요.`;
       if(request.p_action==='nickname' || (request.p_action==='tap' && result.hatched!==null)) await refreshBoard();
     } catch(error) {
       if(generation!==epoch) return;

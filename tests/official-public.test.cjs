@@ -10,6 +10,8 @@ const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm'),asse
  assert.ok(data.top.every(row=>Object.keys(row).every(key=>['nickname','count','rank','is_me'].includes(key))));
  const denied=await fetch(`${config.url}/rest/v1/rpc/official_action`,{method:'POST',headers,body:JSON.stringify({p_action:'join'})});
  assert.ok([401,403].includes(denied.status),'비로그인 명령 차단');
+ const deniedV2=await fetch(`${config.url}/rest/v1/rpc/official_action_v2`,{method:'POST',headers,body:JSON.stringify({p_action:'join'})});
+ assert.ok([401,403].includes(deniedV2.status),'비로그인 15종 명령 차단');
  const privateTable=await fetch(`${config.url}/rest/v1/players?select=*`,{headers:{...headers,'Accept-Profile':'wakppu_ranked'}});
  assert.ok([401,403,406].includes(privateTable.status),'비공개 스키마/테이블 접근 차단');
  const legacy=await fetch(`${config.url}/rest/v1/game_saves?select=user_id`,{headers});

@@ -2,17 +2,20 @@
 const { PGlite } = require(process.env.TEST_PGLITE_MODULE || '@electric-sql/pglite');
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
 const { randomUUID } = require('node:crypto');
-const migration = path.join(__dirname, '../supabase/migrations/20261015091950_official_collection.sql');
+const migrations = path.join(__dirname, '../supabase/migrations');
 const A = '11111111-1111-4111-8111-111111111111', B = '22222222-2222-4222-8222-222222222222';
-async function setup() {
+async function setup(options={}) {
   const db = new PGlite();
   await db.exec(`create role anon; create role authenticated; create schema auth;
     create table auth.users(id uuid primary key);
     create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;
     grant usage on schema auth to anon,authenticated; grant execute on function auth.uid() to anon,authenticated;
     insert into auth.users values ('${A}'),('${B}');`);
-  await db.exec(fs.readFileSync(migration,'utf8'));
   await db.exec(fs.readFileSync(path.join(__dirname,'../supabase/schema.sql'),'utf8'));
+  for(const file of fs.readdirSync(migrations).filter(f=>f.endsWith('.sql')).sort()) {
+    if(file.includes('pet_collection_expansion') && options.beforeExpansion) await options.beforeExpansion(db);
+    await db.exec(fs.readFileSync(path.join(migrations,file),'utf8'));
+  }
   let transaction = Promise.resolve();
   function query(user, sql, params=[]) {
     const result = transaction.then(()=>runQuery(user,sql,params));
@@ -29,7 +32,7 @@ async function setup() {
     } catch(e) { await db.exec('rollback'); throw e; }
   }
   const action = async (user,name,args={},rev=0,id=randomUUID()) => (await query(user,
-    'select public.official_action($1,$2::jsonb,$3,$4::uuid) as result',[name,JSON.stringify(args),rev,id])).rows[0].result;
+    'select public.official_action_v2($1,$2::jsonb,$3,$4::uuid) as result',[name,JSON.stringify(args),rev,id])).rows[0].result;
   const board = async user => (await query(user,'select public.official_leaderboard() as result')).rows[0].result;
   return { db,query,action,board,A,B };
 }
@@ -70,7 +73,7 @@ if (require.main === module) (async()=>{
     }
     assert.equal(a.pets.length,1); assert.equal(a.discovered.length,1); assert.equal(a.cracks,0);
     const pet = a.pets[0];
-    assert.ok(pet>=0 && pet<=9);
+    assert.ok(pet>=0 && pet<=14);
     a = await action(A,'equip',{index:0},a.revision);
     assert.ok(a.income>0);
     await db.query("update wakppu_ranked.players set last_seen=clock_timestamp()-interval '5 seconds' where user_id=$1",[A]);

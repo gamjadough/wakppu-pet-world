@@ -1,0 +1,22 @@
+/* 새 친구의 모습만 추가합니다. 기존 0~9번의 외형은 유지합니다. */
+.species-10 .pet-body,.species-10 .pet-art,.species-10 .pet-mark{background:#ead6b3}
+.species-10 .pet-ear{display:none}
+.species-10 .pet-sprite:before{content:"";position:absolute;left:0;top:-2px;width:72px;height:29px;z-index:3;border-radius:60% 60% 18% 18%;border:2px solid #a96c60;background:radial-gradient(circle at 25% 60%,#fff3d8 0 5px,transparent 6px),radial-gradient(circle at 65% 35%,#fff3d8 0 5px,transparent 6px),#d6907b}
+.species-10 .pet-art:before{left:-7px;top:-10px;width:68px;height:24px;border-radius:60% 60% 18% 18%;box-shadow:none;background:radial-gradient(circle at 25% 60%,#fff3d8 0 4px,transparent 5px),radial-gradient(circle at 65% 35%,#fff3d8 0 4px,transparent 5px),#d6907b}
+.species-10 .pet-mark{border-top:12px solid #d6907b}
+.species-11 .pet-body,.species-11 .pet-art,.species-11 .pet-mark{background:#99d4d8;border-radius:48% 48% 36% 36%}
+.species-11 .pet-ear{height:22px;width:16px;border-radius:70% 10% 60% 60%;background:#9cdde1}
+.species-11 .pet-belly{background:#dcf5ed}
+.species-11 .pet-art:before{background:#9cdde1;box-shadow:30px 0 #9cdde1;border-radius:70% 10% 60% 60%}
+.species-12 .pet-body,.species-12 .pet-art,.species-12 .pet-mark{background:#b8d9ee;box-shadow:inset -7px -7px #90b8d433,0 0 12px #e2f6ff88}
+.species-12 .pet-ear{background:#e1eff9;border-radius:1px;transform:rotate(45deg);height:21px;width:18px}
+.species-12 .pet-belly{background:#ecf8ff}
+.species-12 .pet-art:before{background:#e1eff9;box-shadow:30px 0 #e1eff9;border-radius:1px;transform:rotate(12deg)}
+.species-13 .pet-body,.species-13 .pet-art,.species-13 .pet-mark{background:linear-gradient(135deg,#9bdcc9,#b8b6e5 55%,#edbbd6)}
+.species-13 .pet-ear{background:#d7bfe7;height:34px;top:-7px;border-radius:80% 20% 40% 20%}
+.species-13 .pet-belly{background:#d7f0d9}
+.species-13 .pet-art:before{background:#d7bfe7;box-shadow:30px 0 #c1e0df}
+.species-14 .pet-body,.species-14 .pet-art,.species-14 .pet-mark{background:radial-gradient(circle at 27% 24%,#f6e8b1 0 3px,transparent 4px),radial-gradient(circle at 75% 40%,#f6e8b1 0 2px,transparent 3px),linear-gradient(145deg,#b3a3d8,#8989be);box-shadow:inset -7px -7px #62559b33,0 0 18px #d5bfec66}
+.species-14 .pet-ear{background:#c8b7e5;transform:rotate(42deg);height:20px}
+.species-14 .pet-belly{background:#fff0c3}
+.species-14 .pet-art:before{background:#c8b7e5;box-shadow:30px 0 #c8b7e5;border-radius:2px 13px}
