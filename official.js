@@ -68,7 +68,8 @@
     $('page').textContent=`${page+1} / ${Math.max(1,Math.ceil(state.pets.length/20))}`;
     const nextCodex=JSON.stringify(state.discovered);
     if(codexKey!==nextCodex) {
-      $('codex').replaceChildren(...names.map((name,id)=>{ const s=document.createElement('span'); const known=state.discovered.includes(id); s.textContent=known?name:'???'; s.className=known?'':'unknown'; return s; }));
+      const codexIds=PET_CATALOG.map((_,id)=>id).sort((a,b)=>PET_CATALOG[a].rarity-PET_CATALOG[b].rarity || a-b);
+      $('codex').replaceChildren(...codexIds.map(id=>{ const s=document.createElement('span'); const known=state.discovered.includes(id); s.textContent=known?names[id]:'???'; s.className=known?'':'unknown'; return s; }));
       codexKey=nextCodex;
     }
   }

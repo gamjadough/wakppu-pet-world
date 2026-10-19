@@ -231,7 +231,10 @@ function renderPets() {
   renderSelection();
   const items = inventoryItems();
   $("inventory").innerHTML = items.length ? items.map(item => petCard(item.id, item.index)).join("") : `<p class="empty">${state.pets.length ? "이 등급의 펫이 없어요." : "아직 펫이 없어요. 첫 왁뿌볼을 깨 보세요!"}</p>`;
-  $("codex").innerHTML = PETS.map((_, id) => petCard(id, id, true)).join("");
+  // 도감 표시만 등급순으로 정렬하고 저장 식별자인 펫 번호는 유지합니다.
+  $("codex").innerHTML = PETS.map((pet, id) => ({ pet, id }))
+    .sort((a, b) => a.pet.rarity - b.pet.rarity || a.id - b.id)
+    .map(({ id }) => petCard(id, id, true)).join("");
   world.sync(state.equipped.map(index => {
     const id = state.pets[index], pet = PETS[id];
     return { index, id, name: pet.name, color: COLORS[pet.rarity] };

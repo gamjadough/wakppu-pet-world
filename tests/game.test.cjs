@@ -215,7 +215,7 @@ const fs = require('node:fs');
     assert.deepEqual((await snapshot()).equipped, [1, 2, 3]);
     assert.equal(await page.locator('.world-pet').count(), 3);
     await page.locator('.world-nav [data-menu="codex-panel"]').click();
-    assert.equal(await page.locator('#codex h3').nth(9).textContent(), '우주뿌');
+    assert.equal(await page.locator('#codex .species-9 h3').textContent(), '우주뿌');
     assert.equal(await page.locator('#codex h3').count(), 15);
     assert.equal(await page.locator('#codex h3').last().textContent(), '???');
     assert.equal(await page.locator('#world-map').isVisible(), true);
