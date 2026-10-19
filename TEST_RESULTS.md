@@ -194,4 +194,9 @@
 - 계정 모의 서버 검사에서 잠금 저장과 다른 브라우저 복원, 저장 충돌·실패·재시도·로그아웃·게스트 복구·세션 지연 처리 통과
 - 실제 로컬 PostgreSQL(PGlite)에서 잠금 저장, 이전 클라이언트 덮어쓰기 거절, 새 클라이언트 잠금 해제, 기존 저장 호환, 타 계정·비로그인·트리거 직접 호출 차단 확인
 - game·inventory·fights·garden·mobile·pet-expansion-ui·pet-expansion-server 기존 검사 모두 통과
-- 운영 서버 마이그레이션과 공개 배포 확인은 서버 권한 연결 후 진행해야 합니다. 현재 기록은 로컬 및 모의 서버 검증 결과입니다.
+- Supabase 감자떡 연결로 운영 서버 pet_locks 마이그레이션 적용 성공. 트리거 활성화, RLS 유지, SECURITY INVOKER, 빈 search_path, anon/authenticated의 직접 호출 차단을 확인했습니다. 운영 데이터는 검사 목적으로 수정하지 않았습니다.
+- 공개 사이트 검사는 정적 파일 배포 후 별도로 실행합니다.
+
+### 운영 보안 검사 비교
+
+잠금 적용 전후 보안 경고는 동일하며 새 잠금 함수에 대한 경고는 없습니다. 기존 항목: public.rls_auto_enable의 [비로그인 호출 권한](https://supabase.com/docs/guides/database/database-linter?lint=0028_anon_security_definer_function_executable), rls_auto_enable/save_game의 [로그인 사용자 SECURITY DEFINER 실행](https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable), [유출 암호 보호 비활성화](https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection). save_game의 본인 확인·리비전 비교는 기존 로컬 DB 권한 검사에서 검증했습니다. 이번 변경에서 인증 설정과 기존 함수 권한은 변경하지 않았습니다.
