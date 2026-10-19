@@ -5,6 +5,4 @@ const catalog=vm.runInNewContext(fs.readFileSync(path.join(root,'pets.js'),'utf8
 const pets=JSON.parse(catalog);
 function edit(file,fn){const p=path.join(root,file);fs.writeFileSync(p,fn(fs.readFileSync(p,'utf8')));}
 edit('game.js',t=>t.replace(/^const PETS = [^\r\n]+;[^\r\n]*/m,`const PETS = ${catalog}; // generated from pets.js`));
-edit('official.js',t=>t.replace(/(?:  const PET_CATALOG = [^\r\n]+;[^\r\n]*\r?\n)?(  const names = PET_CATALOG)/,`  const PET_CATALOG = ${catalog}; // generated from pets.js\n$1`));
 edit('relationships.js',t=>t.replace(/const PET_PERSONALITY = [^\r\n]+;/,`const PET_PERSONALITY = ${JSON.stringify(pets.map(p=>p.personality))};`));
-for(const f of ['index.html','official.html']) edit(f,t=>t.replace('<script src="pets.js" defer></script>','').replace(/src="(game|relationships|official)\.js(?:\?[^\"]*)?"/g,'src="$1.js?v=pets15-20261015"'));
