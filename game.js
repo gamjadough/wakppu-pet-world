@@ -14,7 +14,7 @@ const BALLS = [
 const PETS = [{"name":"새싹뿌","rarity":0,"rate":1,"bonus":0.2,"power":0,"personality":0,"ability":"광합성 · 생산 +0.2 G/s"},{"name":"돌멩뿌","rarity":0,"rate":1,"bonus":0,"power":1,"personality":1,"ability":"단단한 손 · 클릭 위력 +1"},{"name":"물방뿌","rarity":1,"rate":3,"bonus":1,"power":0,"personality":2,"ability":"물의 흐름 · 생산 +1 G/s"},{"name":"바람뿌","rarity":1,"rate":3,"bonus":0,"power":2,"personality":3,"ability":"질풍 · 클릭 위력 +2"},{"name":"달빛뿌","rarity":2,"rate":8,"bonus":3,"power":0,"personality":0,"ability":"달빛 수확 · 생산 +3 G/s"},{"name":"번개뿌","rarity":2,"rate":8,"bonus":0,"power":3,"personality":3,"ability":"전격 · 클릭 위력 +3"},{"name":"별무리뿌","rarity":3,"rate":20,"bonus":8,"power":0,"personality":2,"ability":"별의 축복 · 생산 +8 G/s"},{"name":"용암뿌","rarity":3,"rate":20,"bonus":0,"power":5,"personality":1,"ability":"화산의 힘 · 클릭 위력 +5"},{"name":"태양뿌","rarity":4,"rate":60,"bonus":25,"power":0,"personality":3,"ability":"황금 햇살 · 생산 +25 G/s"},{"name":"우주뿌","rarity":4,"rate":60,"bonus":0,"power":8,"personality":0,"ability":"차원 균열 · 클릭 위력 +8"},{"name":"버섯뿌","rarity":0,"rate":1,"bonus":0.1,"power":0,"personality":2,"ability":"포근한 포자 · 생산 +0.1 G/s"},{"name":"이슬뿌","rarity":1,"rate":3,"bonus":0.5,"power":1,"personality":0,"ability":"새벽 물방울 · 생산 +0.5 G/s · 클릭 +1"},{"name":"서리뿌","rarity":2,"rate":8,"bonus":1,"power":2,"personality":1,"ability":"반짝 서리 · 생산 +1 G/s · 클릭 +2"},{"name":"오로라뿌","rarity":3,"rate":20,"bonus":4,"power":3,"personality":3,"ability":"하늘 커튼 · 생산 +4 G/s · 클릭 +3"},{"name":"은하뿌","rarity":4,"rate":60,"bonus":10,"power":5,"personality":2,"ability":"별의 강 · 생산 +10 G/s · 클릭 +5"}]; // generated from pets.js
 const $ = id => document.getElementById(id);
 const format = n => new Intl.NumberFormat("ko-KR", { maximumFractionDigits: 1, notation: n >= 1000000 ? "compact" : "standard" }).format(n);
-const defaults = () => ({ version: 1, catalogVersion: 2, gold: 0, pets: [], equipped: [], discovered: [], stock: [0, 0, 0, 0], selected: 0, cracks: 0, soundEnabled: true, fights: [], peaceUntil: {}, fightEndsAt: 0, scene: "day" });
+const defaults = () => ({ version: 1, catalogVersion: 2, lockVersion: 1, gold: 0, pets: [], equipped: [], locked: [], discovered: [], stock: [0, 0, 0, 0], selected: 0, cracks: 0, soundEnabled: true, fights: [], peaceUntil: {}, fightEndsAt: 0, scene: "day" });
 const integer = (v, max) => Number.isInteger(v) && v >= 0 && v <= max;
 let storageOK = true;
 let activeSaveKey = SAVE_KEY;
@@ -30,6 +30,7 @@ function validateSave(data) {
     if (Number.isFinite(data.gold) && data.gold >= 0) clean.gold = Math.min(data.gold, 1e15);
     if (Array.isArray(data.pets)) clean.pets = data.pets.filter(p => integer(p, PETS.length - 1)).slice(0, 10000);
     if (Array.isArray(data.equipped)) clean.equipped = [...new Set(data.equipped)].filter(i => integer(i, clean.pets.length - 1)).slice(0, SLOT_LIMIT);
+    if (Array.isArray(data.locked)) clean.locked = [...new Set(data.locked)].filter(i => integer(i, clean.pets.length - 1));
     const discoveries = Array.isArray(data.discovered) ? data.discovered.filter(p => integer(p, PETS.length - 1)) : [];
     clean.discovered = [...new Set([...discoveries, ...clean.pets])];
     if (Array.isArray(data.stock)) clean.stock = BALLS.map((_, i) => i > 0 && integer(data.stock[i], 9999) ? data.stock[i] : 0);
@@ -199,7 +200,8 @@ function petCard(petId, index, codex = false) {
   const p = PETS[petId];
   const known = !codex || state.discovered.includes(petId);
   const equipped = !codex && state.equipped.includes(index);
-  return `<article class="pet-card species-${petId} ${equipped ? "equipped" : ""} ${known ? "" : "unknown"}" style="--rarity:${COLORS[p.rarity]}">${codex ? "" : `<label class="pet-selection"><input type="checkbox" data-pet-select="${index}" aria-label="${p.name} ${index + 1}번 방생 선택" ${selectedPets.has(index) ? "checked" : ""} ${equipped ? "disabled" : ""}>${equipped ? "장착 중" : "방생 선택"}</label>`}<div class="pet-art" aria-hidden="true"></div><span class="rarity">${RARITIES[p.rarity]}</span><h3>${known ? p.name : "???"}</h3><p class="rate">${known ? `${format(p.rate + p.bonus)} G/s` : "미발견"}</p><p class="personality">${known ? PERSONALITIES[PETS[petId].personality] + " 성격" : "성격 미발견"}</p><p>${known ? p.ability : "부화하여 비밀을 발견하세요"}</p>${codex ? "" : `<button data-equip="${index}" >${equipped ? "장착 해제" : state.equipped.length >= SLOT_LIMIT ? "교체 장착" : "장착하기"}</button><button data-release="${index}" class="release">방생 · +${format(p.rate + p.bonus)} G</button>`}</article>`;
+  const locked = !codex && state.locked.includes(index);
+  return `<article class="pet-card species-${petId} ${equipped ? "equipped" : ""} ${locked ? "locked" : ""} ${known ? "" : "unknown"}" style="--rarity:${COLORS[p.rarity]}">${codex ? "" : `<label class="pet-selection"><input type="checkbox" data-pet-select="${index}" aria-label="${p.name} ${index + 1}번 방생 선택" ${selectedPets.has(index) ? "checked" : ""} ${equipped || locked ? "disabled" : ""}>${locked ? "잠금 중" : equipped ? "장착 중" : "방생 선택"}</label>`}<div class="pet-art" aria-hidden="true"></div><span class="rarity">${RARITIES[p.rarity]}</span><h3>${known ? p.name : "???"}</h3><p class="rate">${known ? `${format(p.rate + p.bonus)} G/s` : "미발견"}</p><p class="personality">${known ? PERSONALITIES[PETS[petId].personality] + " 성격" : "성격 미발견"}</p><p>${known ? p.ability : "부화하여 비밀을 발견하세요"}</p>${codex ? "" : `<button data-equip="${index}" >${equipped ? "장착 해제" : state.equipped.length >= SLOT_LIMIT ? "교체 장착" : "장착하기"}</button><button data-lock="${index}" class="pet-lock" aria-pressed="${locked}" aria-label="${p.name} ${index + 1}번 ${locked ? "잠금 해제" : "잠그기"}">${locked ? "🔒 잠금 해제" : "잠그기"}</button><button data-release="${index}" class="release" ${locked ? "disabled" : ""}>방생 · +${format(p.rate + p.bonus)} G</button>`}</article>`;
 }
 // 정렬은 표시 목록에만 적용합니다. 저장 배열의 번호는 장착·중복 펫을 구분합니다.
 const selectedPets = new Set();
@@ -212,7 +214,7 @@ function inventoryItems() {
   return items;
 }
 function renderSelection() {
-  const eligible = inventoryItems().filter(item => !state.equipped.includes(item.index));
+  const eligible = inventoryItems().filter(item => !state.equipped.includes(item.index) && !state.locked.includes(item.index));
   const allowed = new Set(eligible.map(item => item.index));
   for (const index of selectedPets) if (!allowed.has(index)) selectedPets.delete(index);
   const reward = [...selectedPets].reduce((sum, index) => {
@@ -306,6 +308,8 @@ $("shop").addEventListener("click", e => {
   save(); renderStats(); renderBall(); message(`${BALLS[tier].name} 구매 완료! 보유 왁뿌볼에서 선택하세요.`);
 });
 function releasePets(indices) {
+  indices = indices.filter(index => integer(index, state.pets.length - 1) && !state.locked.includes(index));
+  if (!indices.length) return 0;
   accrueGold();
   const released = new Set(indices), nextPets = [];
   let reward = 0;
@@ -326,6 +330,7 @@ function releasePets(indices) {
   }).map(pair => pair.map(index => remap.get(index)));
   state.peaceUntil = nextPeace;
   state.equipped = state.equipped.filter(index => !released.has(index)).map(index => remap.get(index));
+  state.locked = state.locked.filter(index => !released.has(index)).map(index => remap.get(index));
   state.pets = nextPets;
   state.gold = Math.min(1e15, state.gold + reward);
   selectedPets.clear(); world.clear(); selectedWorldPet = null; $("pet-info").hidden = true;
@@ -340,12 +345,12 @@ $("inventory").addEventListener("change", event => {
   const input = event.target.closest("[data-pet-select]");
   if (!input) return;
   const index = Number(input.dataset.petSelect);
-  if (!integer(index, state.pets.length - 1) || state.equipped.includes(index)) return;
+  if (!integer(index, state.pets.length - 1) || state.equipped.includes(index) || state.locked.includes(index)) return;
   if (input.checked) selectedPets.add(index); else selectedPets.delete(index);
   renderSelection();
 });
 $("select-visible").addEventListener("click", () => {
-  inventoryItems().forEach(item => { if (!state.equipped.includes(item.index)) selectedPets.add(item.index); });
+  inventoryItems().forEach(item => { if (!state.equipped.includes(item.index) && !state.locked.includes(item.index)) selectedPets.add(item.index); });
   renderSelection();
 });
 $("clear-selection").addEventListener("click", () => { selectedPets.clear(); renderSelection(); });
@@ -354,18 +359,26 @@ $("release-selected").addEventListener("click", () => {
   if (!selectedPets.size) return;
   const indices = [...selectedPets];
   const reward = indices.reduce((sum, index) => { const p = PETS[state.pets[index]]; return sum + p.rate + p.bonus; }, 0);
-  if (!confirm(`선택한 펫 ${indices.length}마리를 방생하고 총 ${format(reward)} G를 받을까요? 삭제한 펫은 되돌릴 수 없습니다. 장착 펫과 도감 기록은 유지됩니다.`)) return;
+  if (!confirm(`선택한 펫 ${indices.length}마리를 방생하고 총 ${format(reward)} G를 받을까요? 삭제한 펫은 되돌릴 수 없습니다. 장착·잠금 펫과 도감 기록은 유지됩니다.`)) return;
   releasePets(indices);
   $("inventory-notice").textContent = `${indices.length}마리 방생 완료 · +${format(reward)} G`;
   save(); render();
 });
 $("inventory").addEventListener("click", e => {
-  const button = e.target.closest("[data-equip], [data-release]");
+  const button = e.target.closest("[data-equip], [data-release], [data-lock]");
   if (!button) return;
   const release = button.hasAttribute("data-release");
-  const index = Number(release ? button.dataset.release : button.dataset.equip);
+  const toggleLock = button.hasAttribute("data-lock");
+  const index = Number(toggleLock ? button.dataset.lock : release ? button.dataset.release : button.dataset.equip);
   if (!integer(index, state.pets.length - 1)) return;
   const pet = PETS[state.pets[index]];
+  if (toggleLock) {
+    const wasLocked = state.locked.includes(index);
+    state.locked = wasLocked ? state.locked.filter(i => i !== index) : [...state.locked, index];
+    $("inventory-notice").textContent = `${pet.name} ${wasLocked ? "잠금 해제" : "잠금 완료 · 방생에서 보호됩니다"}`;
+    save(); renderPets(); return;
+  }
+  if (release && state.locked.includes(index)) return;
   if (release && !confirm(`${pet.name}을 방생하고 ${format(pet.rate + pet.bonus)} G를 받을까요? 인벤토리에서 삭제되며 되돌릴 수 없습니다. 도감 기록은 유지됩니다.`)) return;
   accrueGold();
   if (release) {

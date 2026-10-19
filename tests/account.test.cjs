@@ -80,15 +80,17 @@ const blank = () => ({ version: 1, gold: 0, pets: [], equipped: [], discovered: 
     assert.equal(row.state.gold, 25);
     assert.deepEqual(row.state.pets, [0]);
     assert.equal(dialogs.length, 0, '첫 로그인은 확인창 없이 게스트 진행을 가져옵니다');
-    await a.page.evaluate(() => { state.gold = 70; state.scene = "dusk"; save(); });
+    await a.page.evaluate(() => { state.gold = 70; state.scene = "dusk"; state.locked = [0]; save(); });
     await a.page.locator('#account-toggle').click();
     await a.page.locator('#account-save').click();
     await a.page.waitForFunction(() => document.getElementById('cloud-status').textContent === '계정 서버 저장 완료');
     assert.equal(row.state.gold, 70);
     assert.equal(row.state.scene, "dusk");
+    assert.deepEqual(row.state.locked, [0], "계정 서버에 잠금 저장");
     const b = await context('user-a');
     assert.equal(await b.page.evaluate(() => state.gold), 70);
     assert.equal(await b.page.evaluate(() => state.scene), "dusk");
+    assert.deepEqual(await b.page.evaluate(() => state.locked), [0], "다른 브라우저에서 잠금 복원");
     await a.page.evaluate(() => { state.gold = 90; save(); });
     await a.page.locator('#account-save').click();
     await a.page.waitForFunction(() => document.getElementById('cloud-status').textContent === '계정 서버 저장 완료');

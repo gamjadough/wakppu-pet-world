@@ -216,3 +216,7 @@
 @media(prefers-reduced-motion:reduce){.playing .pet-sprite,.garden-fireflies i{animation:none!important}}
 @media(max-width:700px){.account-toggle{top:auto;bottom:calc(114px + env(safe-area-inset-bottom));right:20px;min-height:44px;font-size:11px}.tree-b{display:none}}
 @media(max-height:500px) and (orientation:landscape){.account-toggle{top:auto;bottom:94px;right:20px;font-size:10px;min-height:44px}}
+
+.pet-card.locked{border-color:#879f6c}
+.world-game .pet-lock{min-height:44px;margin-top:8px;touch-action:manipulation}
+.world-game .pet-lock[aria-pressed="true"]{background:#e6efd9;border-color:#879f6c;color:#466636}
