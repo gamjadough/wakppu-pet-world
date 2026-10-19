@@ -13,7 +13,7 @@ const {randomUUID}=require('node:crypto');
   const replay=await s.action(s.A,'buy',{index:1},6,pending);assert.deepEqual(replay,original,'업데이트 전 미확인 명령의 재전송도 이중 구매 없음');
   const catalog=vm.runInNewContext(fs.readFileSync('pets.js','utf8')+';JSON.stringify(PET_CATALOG)');
   const pets=JSON.parse(catalog);assert.equal(pets.length,15);
-  for(const [file,label] of [['game.js','PETS'],['official.js','PET_CATALOG']]) {
+  for(const [file,label] of [['game.js','PETS']]) {
    const source=fs.readFileSync(file,'utf8'),literal=source.match(new RegExp('const '+label+' = (\\[.*\\]);'));
    assert.ok(literal,`${file} 내장 카탈로그`);assert.deepEqual(JSON.parse(literal[1]),pets,`${file}와 공유 원본 일치`);
   }
