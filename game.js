@@ -66,6 +66,8 @@ const sounds = new GameSounds();
 let state = load();
 let hatching = false;
 let hatchTimer;
+// 현재 화면의 부화 결과만 가리킵니다. 계정 전환·초기화 시 폐기합니다.
+let latestHatch = null;
 let lastTick = performance.now();
 
 // 상태 계산과 화면 갱신을 분리합니다. 인벤토리 번호로 같은 종류도 구분합니다.
@@ -226,6 +228,34 @@ function renderSelection() {
   $("select-visible").disabled = eligible.length === 0 || eligible.every(item => selectedPets.has(item.index));
   document.querySelectorAll("[data-pet-select]").forEach(input => { input.checked = selectedPets.has(Number(input.dataset.petSelect)); });
 }
+function equipPet(index) {
+  if (!integer(index, state.pets.length - 1) || state.equipped.includes(index)) return false;
+  if (state.equipped.length >= SLOT_LIMIT) state.equipped.pop();
+  state.equipped.push(index);
+  $("inventory-notice").textContent = `${PETS[state.pets[index]].name} 장착 완료`;
+  return true;
+}
+function renderHatchAction() {
+  const result = latestHatch;
+  const valid = result && integer(result.index, state.pets.length - 1) && state.pets[result.index] === result.petId;
+  $("hatch-actions").hidden = !valid || hatching;
+  $("hatch-equip").disabled = !valid || hatching;
+  if (!valid || hatching) return;
+  const equipped = state.equipped.includes(result.index), name = PETS[result.petId].name;
+  $("hatch-equip").disabled = equipped;
+  $("hatch-equip").textContent = equipped ? "장착 완료" : "바로 장착";
+  if (equipped) $("hatch-equip-note").textContent = `${name}이 초원에 합류했어요.`;
+  else if (state.equipped.length >= SLOT_LIMIT) {
+    const replacing = PETS[state.pets[state.equipped[state.equipped.length - 1]]];
+    $("hatch-equip-note").textContent = `마지막으로 장착한 ${replacing.name}과 교체해요. 기존 펫은 인벤토리에 남아요.`;
+  } else $("hatch-equip-note").textContent = `${name} 장착 · 남은 슬롯 ${SLOT_LIMIT - state.equipped.length}개`;
+}
+$("hatch-equip").addEventListener("click", () => {
+  renderHatchAction();
+  if (gamePaused || hatching || !latestHatch || $("hatch-equip").disabled) return;
+  accrueGold();
+  if (equipPet(latestHatch.index)) { save(); render(); }
+});
 function renderPets() {
   $("recommend").disabled = state.pets.length === 0;
   $("slots").textContent = `장착 ${state.equipped.length} / ${SLOT_LIMIT}`;
@@ -241,6 +271,7 @@ function renderPets() {
     const id = state.pets[index], pet = PETS[id];
     return { index, id, name: pet.name, color: COLORS[pet.rarity] };
   }));
+  renderHatchAction();
   if (selectedWorldPet !== null && !state.equipped.includes(selectedWorldPet)) {
     selectedWorldPet = null; $("pet-info").hidden = true;
   }
@@ -261,7 +292,9 @@ function hatch() {
   const petId = rollPet(state.selected);
   const p = PETS[petId];
   if (state.selected > 0) state.stock[state.selected]--;
+  latestHatch = { index: state.pets.length, petId };
   state.pets.push(petId);
+  renderHatchAction();
   if (!state.discovered.includes(petId)) state.discovered.push(petId);
   state.cracks = 0;
   if (state.selected > 0 && state.stock[state.selected] === 0) state.selected = 0;
@@ -276,12 +309,15 @@ function hatch() {
     hatching = false;
     $("ball").classList.remove("breaking");
     $("burst").classList.remove("active");
-    message(`${RARITIES[p.rarity]} · ${p.name} 부화! ${format(p.rate + p.bonus)} G/s — 인벤토리에서 장착하세요.`);
+    message(`${RARITIES[p.rarity]} · ${p.name} 부화! ${format(p.rate + p.bonus)} G/s`);
     render();
   }, 650);
 }
 $("ball").addEventListener("click", () => {
   if (hatching || state.pets.length >= 10000) { if (!hatching) message("인벤토리 한도 10,000마리에 도달했어요."); return; }
+  if (latestHatch) {
+    latestHatch = null; renderHatchAction(); message("볼을 클릭해 새 친구를 만나세요!");
+  }
   if (state.soundEnabled) sounds.play("click");
   state.cracks = Math.min(BALLS[state.selected].clicks, state.cracks + clickPower());
   $("ball").classList.remove("hit");
@@ -331,6 +367,10 @@ function releasePets(indices) {
   state.peaceUntil = nextPeace;
   state.equipped = state.equipped.filter(index => !released.has(index)).map(index => remap.get(index));
   state.locked = state.locked.filter(index => !released.has(index)).map(index => remap.get(index));
+  if (latestHatch) {
+    if (released.has(latestHatch.index)) latestHatch = null;
+    else latestHatch.index = remap.get(latestHatch.index);
+  }
   state.pets = nextPets;
   state.gold = Math.min(1e15, state.gold + reward);
   selectedPets.clear(); world.clear(); selectedWorldPet = null; $("pet-info").hidden = true;
@@ -385,12 +425,7 @@ $("inventory").addEventListener("click", e => {
     releasePets([index]);
     $("inventory-notice").textContent = `${pet.name} 방생 완료 · +${format(pet.rate + pet.bonus)} G`;
   } else if (state.equipped.includes(index)) state.equipped = state.equipped.filter(i => i !== index);
-  else {
-    // 배열 마지막이 가장 최근에 장착한 펫입니다. 기존 저장 순서도 그대로 사용합니다.
-    if (state.equipped.length >= SLOT_LIMIT) state.equipped.pop();
-    state.equipped.push(index);
-    $("inventory-notice").textContent = `${pet.name} 장착 완료`;
-  }
+  else equipPet(index);
   save(); render();
 });
 $("recommend").addEventListener("click", () => {
@@ -408,7 +443,7 @@ $("sound-toggle").addEventListener("click", () => {
 });
 $("reset").addEventListener("click", () => {
   if (!confirm("골드, 펫, 도감, 구매 기록을 모두 초기화할까요? 이 작업은 되돌릴 수 없습니다.")) return;
-  clearTimeout(hatchTimer); hatching = false; state = defaults(); lastTick = performance.now();
+  clearTimeout(hatchTimer); hatching = false; latestHatch = null; state = defaults(); lastTick = performance.now();
   world.clear(); selectedPets.clear(); $("inventory-rarity").value = "all"; $("inventory-sort").value = "obtained";
   $("ball").classList.remove("breaking", "hit"); $("burst").classList.remove("active");
   save(); render(); message("새로운 연구를 시작합니다. 첫 왁뿌볼을 깨 보세요!");
@@ -483,7 +518,8 @@ window.wakppuGame = {
   snapshot: () => JSON.parse(JSON.stringify(state)),
   pause(value) { gamePaused = value; lastTick = performance.now(); },
   useSave(data, userId = null) {
-    clearTimeout(hatchTimer); hatching = false;
+    clearTimeout(hatchTimer); hatching = false; latestHatch = null;
+    message("볼을 클릭해 새 친구를 만나세요!");
     activeSaveKey = userId ? `${SAVE_KEY}:account:${userId}` : SAVE_KEY;
     state = validateSave(data); lastTick = performance.now();
     selectedPets.clear(); world.clear(); selectedWorldPet = null;

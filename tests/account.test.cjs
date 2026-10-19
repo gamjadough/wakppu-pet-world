@@ -212,6 +212,24 @@ const blank = () => ({ version: 1, gold: 0, pets: [], equipped: [], discovered: 
     });
     await stalled.ctx.close();
     console.log('PASS: 세션 조회 지연 제한과 게스트 클릭 복구');
+    sessionDelay = 0;
+    // 바로 장착도 자동 저장되고 다른 브라우저에서 같은 구성으로 복원됩니다.
+    row = { state: { ...blank(), catalogVersion: 2, lockVersion: 1, pets: [0, 0, 0], equipped: [0, 1, 2], locked: [0, 1, 2] }, revision: 1 };
+    const quick = await context('user-quick-equip');
+    await quick.page.locator('.world-nav [data-menu="hatch-panel"]').click();
+    await quick.page.evaluate(() => { rollPet = () => 0; state.cracks = 11; renderBall(); });
+    await quick.page.locator('#ball').click();
+    await quick.page.waitForFunction(() => !hatching);
+    await quick.page.locator('#hatch-equip').click();
+    await quick.page.waitForFunction(() => document.getElementById('cloud-status').textContent === '계정 서버 저장 완료');
+    assert.deepEqual(row.state.equipped, [0, 1, 3]);
+    assert.deepEqual(row.state.locked, [0, 1, 2]);
+    await quick.ctx.close();
+    const restored = await context('user-quick-equip');
+    assert.deepEqual(await restored.page.evaluate(() => state.equipped), [0, 1, 3]);
+    assert.deepEqual(await restored.page.evaluate(() => state.locked), [0, 1, 2]);
+    await restored.ctx.close();
+    console.log('PASS: 바로 장착 후 버튼 없는 계정 자동 저장·다른 브라우저 복원·교체한 펫 잠금 유지');
     assert.deepEqual(errors, []);
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

@@ -200,3 +200,13 @@
 ### 운영 보안 검사 비교
 
 잠금 적용 전후 보안 경고는 동일하며 새 잠금 함수에 대한 경고는 없습니다. 기존 항목: public.rls_auto_enable의 [비로그인 호출 권한](https://supabase.com/docs/guides/database/database-linter?lint=0028_anon_security_definer_function_executable), rls_auto_enable/save_game의 [로그인 사용자 SECURITY DEFINER 실행](https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable), [유출 암호 보호 비활성화](https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection). save_game의 본인 확인·리비전 비교는 기존 로컬 DB 권한 검사에서 검증했습니다. 이번 변경에서 인증 설정과 기존 함수 권한은 변경하지 않았습니다.
+## 부화 후 바로 장착 검사 (2026-10-19)
+
+- Chrome Playwright의 PC 1280×900, 모바일 390×844·320×568·844×390에서 바로 장착, 빈 슬롯, 3슬롯 교체 대상 안내, 중복 펫 구분, 연속 클릭 시 장착 유지 확인
+- 기존 펫과 새 펫의 잠금 유지, 인벤토리 장착 변경에 따른 안내 갱신, 방생 후 번호 재연결, 부화 중 방생·계정 전환, 초기화와 다음 볼 클릭 시 결과 폐기 확인
+- 새로고침 복원, 수익 반영, 44px 터치 영역과 실제 클릭 가능 여부, 가로 넘침 없음 확인. 모바일 세로·가로 화면을 시각 검토했습니다.
+- 모의 Supabase 응답을 사용하는 계정 검사에서 바로 장착 후 자동 서버 저장, 별도 브라우저 컨텍스트 복원, 교체된 기존 펫의 잠금 유지 확인
+- game·inventory·locks·fights·garden·mobile(7종 화면)·pet-expansion-ui·official-redirect·account 회귀 검사 모두 통과
+- game.js 구문 검사와 git diff 공백 검사 통과
+
+별도 브라우저 컨텍스트와 모의 계정 서버를 사용해 실제 사용자 기록을 변경하지 않았습니다. 실제 휴대폰과 Safari는 검사하지 않았습니다. 서버 API·DB 변경은 없습니다. 공개 사이트 반영과 기능 검사는 배포 후 별도로 수행합니다.

@@ -220,3 +220,7 @@
 .pet-card.locked{border-color:#879f6c}
 .world-game .pet-lock{min-height:44px;margin-top:8px;touch-action:manipulation}
 .world-game .pet-lock[aria-pressed="true"]{background:#e6efd9;border-color:#879f6c;color:#466636}
+
+.hatch-actions{display:flex;align-items:center;justify-content:space-between;gap:10px;text-align:left;padding:6px 9px;background:#fff9e5;border:1px solid #d5d9b9;border-radius:10px}
+#hatch-equip-note{font-size:11px;line-height:1.4;color:#637653;min-width:0}
+.world-game #hatch-equip{min-height:44px;flex-shrink:0;padding:8px 12px;background:#e1edcd;border-color:#78a373;font-size:12px;font-weight:700;touch-action:manipulation}
