@@ -1,6 +1,6 @@
 "use strict";
 
-// 개인 클라우드 저장. 게임 결과 검증과 공식 랭킹은 별도 서버 규칙이 필요합니다.
+// 개인 클라우드 저장과 선택 참여형 초당 수익 랭킹. 획득 과정은 검증하지 않습니다.
 (function () {
   const game = window.wakppuGame;
   const el = id => document.getElementById(id);
@@ -58,8 +58,10 @@
     el("account-panel").hidden = !open;
     el("account-toggle").setAttribute("aria-expanded", String(open));
   }
+  function notifyAccount() { window.dispatchEvent(new Event("wakppu-account")); }
   function pause(value) {
     game.pause(value);
+    notifyAccount();
     document.querySelector("main").inert = value;
     document.querySelector(".world-nav").inert = value;
     el("reset").disabled = value;
@@ -166,6 +168,26 @@
   }
 
   window.wakppuCloud = {
+    rankingReady: () => !!(client && userId && ready && !switching && !conflicted),
+    async leaderboard() {
+      if (!client) throw new Error("SERVER_UNAVAILABLE");
+      const { data, error } = await client.rpc("income_leaderboard");
+      if (error) throw error;
+      return data;
+    },
+    async rankingProfile(nickname) {
+      if (!this.rankingReady()) throw new Error("LOGIN_REQUIRED");
+      const owner = userId;
+      // 순위 등록 전에 최신 구성을 저장합니다. 저장 실패나 충돌이면 등록하지 않습니다.
+      if (nickname !== null) {
+        if (!await upload()) throw new Error("SAVE_FAILED");
+        if (JSON.stringify(game.snapshot()) !== lastUploaded && !await upload()) throw new Error("SAVE_FAILED");
+      }
+      if (owner !== userId || !this.rankingReady()) throw new Error("LOGIN_REQUIRED");
+      const { data, error } = await client.rpc("set_income_profile", { p_nickname: nickname });
+      if (error) throw error;
+      return data;
+    },
     blocked() {
       // 자동 저장 로그는 숨기지만, 입력이 잠긴 이유와 해결 버튼은 숨기지 않습니다.
       panel(true);

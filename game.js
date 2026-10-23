@@ -68,6 +68,7 @@ let hatching = false;
 let hatchTimer;
 // 현재 화면의 부화 결과만 가리킵니다. 계정 전환·초기화 시 폐기합니다.
 let latestHatch = null;
+let autoHatch = null, autoTimer = null;
 let lastTick = performance.now();
 
 // 상태 계산과 화면 갱신을 분리합니다. 인벤토리 번호로 같은 종류도 구분합니다.
@@ -191,12 +192,12 @@ function renderBall() {
   $("ball-name").textContent = ball.name;
   $("ball").dataset.tier = state.selected;
   $("ball").dataset.crack = Math.min(4, Math.ceil(state.cracks / ball.clicks * 4));
-  $("ball").disabled = hatching;
+  $("ball").disabled = hatching || !!autoHatch;
   $("progress").max = ball.clicks;
   $("progress").value = state.cracks;
   $("click-label").textContent = `균열 ${state.cracks} / ${ball.clicks}`;
   $("power").textContent = `클릭 위력 ${clickPower()}`;
-  $("queue").innerHTML = BALLS.map((b, i) => `<button data-select="${i}" class="${state.selected === i ? "selected" : ""}" aria-pressed="${state.selected === i}" ${hatching || (i > 0 && !state.stock[i]) ? "disabled" : ""}>${b.name} · ${i === 0 ? "∞" : state.stock[i]}</button>`).join("");
+  $("queue").innerHTML = BALLS.map((b, i) => `<button data-select="${i}" class="${state.selected === i ? "selected" : ""}" aria-pressed="${state.selected === i}" ${hatching || autoHatch || (i > 0 && !state.stock[i]) ? "disabled" : ""}>${b.name} · ${i === 0 ? "∞" : state.stock[i]}</button>`).join("");
 }
 function petCard(petId, index, codex = false) {
   const p = PETS[petId];
@@ -276,7 +277,7 @@ function renderPets() {
     selectedWorldPet = null; $("pet-info").hidden = true;
   }
 }
-function render() { renderStats(); renderBall(); renderPets(); }
+function render() { renderStats(); renderBall(); renderPets(); renderAutoHatch(); }
 
 function rollPet(tier) {
   let roll = Math.random() * 100;
@@ -294,6 +295,7 @@ function hatch() {
   if (state.selected > 0) state.stock[state.selected]--;
   latestHatch = { index: state.pets.length, petId };
   state.pets.push(petId);
+  if (autoHatch) autoHatch.done++;
   renderHatchAction();
   if (!state.discovered.includes(petId)) state.discovered.push(petId);
   state.cracks = 0;
@@ -311,9 +313,17 @@ function hatch() {
     $("burst").classList.remove("active");
     message(`${RARITIES[p.rarity]} · ${p.name} 부화! ${format(p.rate + p.bonus)} G/s`);
     render();
+    if (autoHatch) {
+      if (autoHatch.stopRarity <= p.rarity) stopAutoHatch(`${RARITIES[p.rarity]} 획득으로 중지`);
+      else if (autoHatch.done >= autoHatch.count) stopAutoHatch("지정 횟수 완료");
+      else if (state.pets.length >= 10000) stopAutoHatch("인벤토리 한도 도달");
+      else if (autoHatch.tier > 0 && !state.stock[autoHatch.tier]) stopAutoHatch("선택한 볼 소진");
+      else { renderAutoHatch(); autoTimer = setTimeout(autoStep, 900); }
+    }
   }, 650);
 }
 $("ball").addEventListener("click", () => {
+  if (gamePaused || autoHatch) return;
   if (hatching || state.pets.length >= 10000) { if (!hatching) message("인벤토리 한도 10,000마리에 도달했어요."); return; }
   if (latestHatch) {
     latestHatch = null; renderHatchAction(); message("볼을 클릭해 새 친구를 만나세요!");
@@ -326,9 +336,46 @@ $("ball").addEventListener("click", () => {
   renderBall();
   if (state.cracks >= BALLS[state.selected].clicks) hatch(); else save();
 });
+// 연속 부화는 화면에서 시작한 작업입니다. 새로고침·계정 전환 후 자동 재개하지 않습니다.
+function renderAutoHatch() {
+  const running = !!autoHatch;
+  $("auto-title").textContent = running ? `연속 부화 중 · ${autoHatch.done} / ${autoHatch.count}` : "연속 부화 설정";
+  $("auto-start").disabled = running || hatching || gamePaused || state.pets.length >= 10000;
+  $("auto-stop").disabled = !running;
+  for (const id of ["auto-count", "auto-rarity"]) $(id).disabled = running;
+  if (running) $("auto-status").textContent = `${BALLS[autoHatch.tier].name} · ${autoHatch.done} / ${autoHatch.count}마리 · 진행 중`;
+}
+function stopAutoHatch(reason = "직접 중지") {
+  clearTimeout(autoTimer); autoTimer = null;
+  const run = autoHatch; autoHatch = null;
+  if (run) $("auto-status").textContent = `${reason} · ${run.done} / ${run.count}마리 완료${hatching ? " · 현재 부화 연출은 끝까지 표시돼요" : ""}`;
+  renderAutoHatch(); renderBall();
+}
+function autoStep() {
+  autoTimer = null;
+  if (!autoHatch) return;
+  if (gamePaused || document.hidden) { stopAutoHatch("화면을 떠나 중지"); return; }
+  if (state.pets.length >= 10000) { stopAutoHatch("인벤토리 한도 도달"); return; }
+  if (autoHatch.tier > 0 && !state.stock[autoHatch.tier]) { stopAutoHatch("선택한 볼 소진"); return; }
+  // 구매하거나 다른 볼로 전환하지 않습니다. 볼 한 개를 완성하고 기존 부화 경로로 저장합니다.
+  state.selected = autoHatch.tier;
+  latestHatch = null; state.cracks = BALLS[state.selected].clicks;
+  hatch(); renderAutoHatch();
+}
+$("auto-start").addEventListener("click", () => {
+  if (autoHatch || hatching || gamePaused || state.pets.length >= 10000) return;
+  const count = Number($("auto-count").value), stopRarity = Number($("auto-rarity").value);
+  if (![1, 10, 30, 100].includes(count) || ![1, 2, 3, 4, 5].includes(stopRarity)) return;
+  if (state.selected > 0 && !state.stock[state.selected]) return;
+  autoHatch = { tier: state.selected, count, stopRarity, done: 0 };
+  autoStep();
+});
+$("auto-stop").addEventListener("click", () => stopAutoHatch());
+document.addEventListener("visibilitychange", () => { if (document.hidden) stopAutoHatch("화면을 떠나 중지"); });
+window.addEventListener("pagehide", () => stopAutoHatch("화면을 떠나 중지"));
 $("queue").addEventListener("click", e => {
   const button = e.target.closest("[data-select]");
-  if (!button || hatching) return;
+  if (!button || hatching || autoHatch) return;
   const tier = Number(button.dataset.select);
   if (tier === state.selected || (tier > 0 && state.stock[tier] === 0)) return;
   state.selected = tier; state.cracks = 0; save(); renderBall(); renderStats();
@@ -443,6 +490,7 @@ $("sound-toggle").addEventListener("click", () => {
 });
 $("reset").addEventListener("click", () => {
   if (!confirm("골드, 펫, 도감, 구매 기록을 모두 초기화할까요? 이 작업은 되돌릴 수 없습니다.")) return;
+  stopAutoHatch("초기화로 중지");
   clearTimeout(hatchTimer); hatching = false; latestHatch = null; state = defaults(); lastTick = performance.now();
   world.clear(); selectedPets.clear(); $("inventory-rarity").value = "all"; $("inventory-sort").value = "obtained";
   $("ball").classList.remove("breaking", "hit"); $("burst").classList.remove("active");
@@ -458,7 +506,7 @@ window.addEventListener("pagehide", save);
 document.addEventListener("visibilitychange", () => { if (document.hidden) save(); });
 
 // 메뉴 열고 닫기는 표시만 바꾸며 게임 진행과 저장값은 유지합니다.
-const menuTitles = { "shop-panel": "왁뿌볼 상점", "hatch-panel": "왁뿌볼 부화실", "inventory-panel": "펫 인벤토리", "codex-panel": "펫 도감", "guide-panel": "정원의 생활 안내" };
+const menuTitles = { "shop-panel": "왁뿌볼 상점", "hatch-panel": "왁뿌볼 부화실", "inventory-panel": "펫 인벤토리", "codex-panel": "펫 도감", "guide-panel": "정원의 생활 안내", "ranking-panel": "초당 수익 랭킹" };
 let activeMenu = null;
 let menuTrigger = null;
 function openMenu(id, trigger) {
@@ -473,6 +521,7 @@ function openMenu(id, trigger) {
   document.querySelectorAll(".menu-page").forEach(page => { page.hidden = page.id !== id; });
   document.querySelectorAll(".world-nav [data-menu]").forEach(button => button.setAttribute("aria-expanded", String(button.dataset.menu === id)));
   $("close-menu").focus({ preventScroll: true });
+  if (id === "ranking-panel") window.wakppuRanking?.refresh();
 }
 function closeMenu() {
   activeMenu = null; $("menu-panel").hidden = true;
@@ -516,8 +565,9 @@ document.addEventListener("click", event => {
 }, true);
 window.wakppuGame = {
   snapshot: () => JSON.parse(JSON.stringify(state)),
-  pause(value) { gamePaused = value; lastTick = performance.now(); },
+  pause(value) { gamePaused = value; if (value) stopAutoHatch("계정 확인으로 중지"); lastTick = performance.now(); renderAutoHatch(); },
   useSave(data, userId = null) {
+    stopAutoHatch("기록 전환으로 중지");
     clearTimeout(hatchTimer); hatching = false; latestHatch = null;
     message("볼을 클릭해 새 친구를 만나세요!");
     activeSaveKey = userId ? `${SAVE_KEY}:account:${userId}` : SAVE_KEY;
