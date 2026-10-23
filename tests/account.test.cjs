@@ -9,16 +9,21 @@ const blank = () => ({ version: 1, gold: 0, pets: [], equipped: [], discovered: 
 
 (async () => {
   const browser = await chromium.launch({ channel: 'chrome', headless: true });
-  let row = null, failWrites = false, writeDelay = 0, sessionDelay = 0;
+  let row = null, failWrites = false, failReads = false, writeDelay = 0, sessionDelay = 0;
   const errors = [], dialogs = [];
   let acceptDialogs = true;
   async function context(user, duringLoad) {
-    const ctx = await browser.newContext();
+    const ctx = await browser.newContext(process.env.TEST_ACCOUNT_MOBILE === '1'
+      ? { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true } : {});
     // 로컬 네트워크 권한 없이 저장소 파일을 브라우저 응답으로 제공합니다.
-    await ctx.route('https://wakppu.test/**', route => {
+    await ctx.route('https://wakppu.test/**', async route => {
       const pathname = new URL(route.request().url()).pathname;
       const file = path.join(base, pathname === '/' ? 'index.html' : pathname.slice(1));
       if (!file.startsWith(base + path.sep)) return route.fulfill({ status: 403 });
+      if (process.env.TEST_ACCOUNT_ASSET_URL) {
+        const response = await route.fetch({ url: process.env.TEST_ACCOUNT_ASSET_URL + (pathname === '/' ? 'index.html' : pathname.slice(1)) });
+        return route.fulfill({ response });
+      }
       try {
         // 다른 작업의 미완성 게임 편집과 분리하여 배포된 게임 + 수정 계정 코드도 검사할 수 있습니다.
         const body = process.env.TEST_COMMITTED_GAME === '1' && ['index.html', 'style.css', 'game.js', 'world.js'].includes(path.basename(file))
@@ -29,7 +34,7 @@ const blank = () => ({ version: 1, gold: 0, pets: [], equipped: [], discovered: 
     });
     await ctx.exposeBinding('fakeCloud', async (_, action, payload) => {
       if (action === 'session') { if (sessionDelay) await new Promise(resolve => setTimeout(resolve, sessionDelay)); return; }
-      if (action === 'load') return { data: row && JSON.parse(JSON.stringify(row)), error: null };
+      if (action === 'load') return failReads ? { error: { message: 'read failed' } } : { data: row && JSON.parse(JSON.stringify(row)), error: null };
       if (writeDelay) await new Promise(resolve => setTimeout(resolve, writeDelay));
       if (failWrites) return { error: { message: 'network failed' } };
       if (payload.p_revision !== (row?.revision || 0)) return { error: { message: 'SAVE_CONFLICT' } };
@@ -58,11 +63,17 @@ const blank = () => ({ version: 1, gold: 0, pets: [], equipped: [], discovered: 
     page.on('dialog', d => { dialogs.push(d.message()); return acceptDialogs ? d.accept() : d.dismiss(); });
     await page.goto('https://wakppu.test/');
     const skipReady = duringLoad && await duringLoad(page) === false;
-    if (!skipReady) await page.waitForFunction(() => document.getElementById('cloud-status').textContent === '계정 서버 저장 완료');
+    if (!skipReady) {
+      try { await page.waitForFunction(() => document.getElementById('cloud-status').textContent === '계정 서버 저장 완료'); }
+      catch (error) {
+        console.error('계정 준비 실패:', await page.evaluate(() => ({ status: document.getElementById('cloud-status').textContent, paused: gamePaused })), errors);
+        throw error;
+      }
+    }
     return { ctx, page };
   }
   try {
-    writeDelay = 2000; sessionDelay = 1000;
+    writeDelay = 2000; sessionDelay = 4000;
     const a = await context('user-a', async page => {
       await page.waitForFunction(() => gamePaused && document.getElementById('cloud-status').textContent.includes('계정 연결을 확인'));
       const menu = await page.locator('.world-nav [data-menu="hatch-panel"]').boundingBox();
@@ -97,13 +108,18 @@ const blank = () => ({ version: 1, gold: 0, pets: [], equipped: [], discovered: 
     await b.page.evaluate(() => { state.gold = 110; save(); });
     await b.page.locator('#account-toggle').click();
     await b.page.locator('#account-save').click();
-    await b.page.waitForFunction(() => document.getElementById('cloud-status').textContent.includes('다른 브라우저'));
+    await b.page.waitForFunction(() => !gamePaused && state.gold === 90);
     assert.equal(row.state.gold, 90);
-    assert.equal(await b.page.evaluate(() => gamePaused), true);
-    await b.page.locator('#account-reload').click();
-    await b.page.waitForFunction(() => !gamePaused);
+    assert.equal(await b.page.evaluate(() => Object.keys(localStorage).some(key => key.startsWith('wakppu-v01:account-backup:user-a:') && JSON.parse(localStorage.getItem(key)).gold === 110)), true);
     assert.equal(await b.page.evaluate(() => state.gold), 90);
-    console.log('PASS: 게스트 연결, 계정 저장, 다른 브라우저 복원, 저장 충돌 차단/재로드');
+    assert.equal(dialogs.length, 0, '저장 충돌은 확인창 없이 자동 반영');
+    await b.page.locator('#account-close').click();
+    await b.page.locator('.world-nav [data-menu="hatch-panel"]').click();
+    await b.page.locator('#ball').click();
+    assert.equal(await b.page.evaluate(() => state.cracks), 1, '자동 반영 후 게임 입력 복구');
+    await b.page.locator('#close-menu').click();
+    await b.page.locator('#account-toggle').click();
+    console.log('PASS: 게스트 연결, 다른 브라우저 복원, 저장 충돌 자동 반영·미전송 기록 백업·입력 복구');
 
     failWrites = true;
     await b.page.evaluate(() => { state.gold = 120; save(); });
@@ -190,14 +206,55 @@ const blank = () => ({ version: 1, gold: 0, pets: [], equipped: [], discovered: 
     await c.page.evaluate(() => { state.gold = 250; save(); });
     row = { state: { ...row.state, gold: 260 }, revision: row.revision + 1 };
     await c.page.reload();
-    await c.page.waitForFunction(() => document.getElementById('cloud-status').textContent.includes('다른 브라우저'));
+    await c.page.waitForFunction(() => !gamePaused && state.gold === 260);
     assert.equal(row.state.gold, 260);
-    assert.equal(await c.page.evaluate(() => gamePaused), true);
-    assert.equal(await c.page.evaluate(() => JSON.parse(localStorage.getItem('wakppu-v01:account-pending:user-a')).state.gold), 250);
-    await c.page.locator('#account-reload').click();
-    await c.page.waitForFunction(() => !gamePaused);
+    assert.equal(await c.page.locator('#account-panel').isVisible(), false, '진입할 때 계정 창을 자동으로 열지 않음');
+    assert.equal(await c.page.locator('#cloud-status').isVisible(), false);
+    assert.equal(await c.page.evaluate(() => Object.keys(localStorage).some(key => key.startsWith('wakppu-v01:account-backup:user-a:') && JSON.parse(localStorage.getItem(key)).gold === 250)), true);
     assert.equal(await c.page.evaluate(() => state.gold), 260);
     assert.equal(await c.page.evaluate(() => localStorage.getItem('wakppu-v01:account-pending:user-a')), null);
+    await c.page.reload();
+    await c.page.waitForFunction(() => !gamePaused && state.gold === 260);
+    assert.equal(await c.page.locator('#account-panel').isVisible(), false, '재진입에도 같은 충돌이 반복되지 않음');
+
+    // 충돌 뒤 서버 조회에 실패하면 화면/백업을 유지하고 복구 후 자동 반영합니다.
+    failReads = true;
+    row = { state: { ...row.state, gold: 280 }, revision: row.revision + 1 };
+    await c.page.evaluate(() => { state.gold = 270; save(); });
+    await c.page.waitForFunction(() => document.getElementById('cloud-status').textContent.includes('불러오지 못했'));
+    assert.equal(await c.page.evaluate(() => gamePaused), true);
+    assert.equal(await c.page.evaluate(() => state.gold), 270);
+    assert.equal(row.state.gold, 280);
+    assert.equal(await c.page.evaluate(() => JSON.parse(localStorage.getItem('wakppu-v01:account-pending:user-a')).state.gold), 270);
+    failReads = false;
+    await c.page.waitForFunction(() => !gamePaused && state.gold === 280);
+    assert.equal(await c.page.evaluate(() => Object.keys(localStorage).some(key => key.startsWith('wakppu-v01:account-backup:user-a:') && JSON.parse(localStorage.getItem(key)).gold === 270)), true);
+    await c.page.locator('#account-close').click();
+
+    // 오래된 백업은 골드 외에도 펫/잠금/장착/볼/도감 전체가 보존됩니다.
+    const pendingState = { ...row.state, gold: 290, pets: [0, 1], locked: [1], equipped: [1], discovered: [0, 1], stock: [0, 3, 2, 1], cracks: 4 };
+    await c.page.evaluate(record => window.wakppuGame.useSave(record, 'user-a'), pendingState);
+    row = { ...row, revision: row.revision + 1 };
+    await c.page.reload();
+    await c.page.waitForFunction(() => !gamePaused && state.gold === 280);
+    const preserved = await c.page.evaluate(() => Object.keys(localStorage).filter(key => key.startsWith('wakppu-v01:account-backup:user-a:')).map(key => JSON.parse(localStorage.getItem(key))).find(record => record.gold === 290));
+    assert.deepEqual(preserved, pendingState);
+
+    // 백업 공간이 없을 때는 현재 기록과 pending을 대체하지 않습니다.
+    await c.page.evaluate(record => window.wakppuGame.useSave(record, 'user-a'), pendingState);
+    row = { ...row, revision: row.revision + 1 };
+    await c.ctx.addInitScript(() => {
+      const original = Storage.prototype.setItem;
+      Storage.prototype.setItem = function(key, value) {
+        if (key.startsWith('wakppu-v01:account-backup:')) throw new DOMException('Quota exceeded', 'QuotaExceededError');
+        return original.call(this, key, value);
+      };
+    });
+    await c.page.reload();
+    await c.page.waitForFunction(() => document.getElementById('cloud-status').textContent.includes('불러오지 못했'));
+    assert.equal(await c.page.evaluate(() => gamePaused), true);
+    assert.equal(await c.page.evaluate(() => JSON.parse(localStorage.getItem('wakppu-v01:account-pending:user-a')).state.gold), 290);
+    assert.equal(row.state.gold, 280);
     console.log('PASS: 버튼 없는 자동 저장, 즉시 재접속 복구, 서버 오류 후 재접속/자동 재시도, 전송 중 변경, 다른 기기 충돌 보호');
     await c.ctx.close();
     sessionDelay = 16000;

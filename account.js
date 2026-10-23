@@ -7,7 +7,7 @@
   const config = window.WAKPPU_SERVER || {};
   let client, userId = null, revision = 0, ready = false, conflicted = false;
   let inFlight = null, lastUploaded = "", cloudMessage = "";
-  let switching = false;
+  let switching = false, syncNeeded = false;
   // 정상 저장은 조용히 진행하고, 계정 창에는 해결이 필요한 문제만 표시합니다.
   el("save-status").hidden = true;
   el("cloud-status").hidden = true;
@@ -64,6 +64,10 @@
     document.querySelector(".world-nav").inert = value;
     el("reset").disabled = value;
   }
+  function backupConflict(state) {
+    // 최신 서버 기록으로 전환하기 전에 미전송 진행을 별도로 보존합니다.
+    localStorage.setItem(`wakppu-v01:account-backup:${userId}:${Date.now()}:${crypto.randomUUID()}`, JSON.stringify(state));
+  }
   function fail(error) {
     if (String(error?.message || error).includes("UPDATE_REQUIRED")) {
       conflicted = true; ready = false; pause(true); panel(true);
@@ -72,8 +76,17 @@
       return;
     }
     if (String(error?.message || error).includes("SAVE_CONFLICT")) {
-      conflicted = true; ready = false; pause(true); panel(true);
-      status("다른 브라우저에 새 기록이 있어요. 서버 기록을 다시 불러오세요.");
+      conflicted = true; ready = false; pause(true);
+      try {
+        backupConflict(game.snapshot());
+        syncNeeded = true;
+        status("최신 계정 진행상태를 반영하는 중…");
+        // 현재 저장 요청이 종료된 다음 조회해 inFlight 대기를 피합니다.
+        setTimeout(upload, 0);
+      } catch {
+        panel(true);
+        status("브라우저 백업 실패 · 현재 기록을 보존하기 위해 동기화를 멈췄어요. 저장 공간을 확인한 뒤 다시 불러오세요.");
+      }
     } else {
       status("서버 저장 실패 · 브라우저에 보관 중 · 자동 재시도합니다.");
     }
@@ -81,6 +94,7 @@
 
   async function upload() {
     if (inFlight) return inFlight;
+    if (syncNeeded && userId && !switching) return loadUser({ id: userId }, true);
     if (!client || !userId || !ready || conflicted || switching) return false;
     const owner = userId, payload = game.snapshot(), encoded = JSON.stringify(payload);
     rememberPending();
@@ -135,12 +149,12 @@
       }
       if (pending && pending.revision === revision) incoming = pending.state;
       else if (pending && JSON.stringify(pending.state) !== JSON.stringify(data?.state)) {
-        game.useSave(incoming, userId);
-        switching = false;
-        fail(new Error("SAVE_CONFLICT"));
-        return;
+        // 종료 직전 남은 백업이 오래되었어도 진입을 막지 않습니다.
+        // 백업에 실패하면 useSave 전에 중단하여 기존 기록을 보존합니다.
+        backupConflict(pending.state);
       }
       game.useSave(incoming, userId);
+      syncNeeded = false;
       ready = true; switching = false;
       rememberPending();
       status(data ? "계정 진행상태 불러오기 완료" : "첫 계정 저장 준비 중…");
@@ -156,7 +170,7 @@
   async function guestMode() {
     ready = false; pause(true);
     if (inFlight) await inFlight;
-    userId = null; revision = 0; lastUploaded = ""; conflicted = false;
+    userId = null; revision = 0; lastUploaded = ""; conflicted = false; syncNeeded = false;
     game.useSave(game.guestSave());
     el("account-status").textContent = "게스트로 플레이 중";
     el("account-login").hidden = false;
