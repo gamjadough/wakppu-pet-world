@@ -42,15 +42,15 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
   await p.locator('#ranking-leave').tap();await p.waitForFunction(()=>document.getElementById('ranking-leave').hidden);assert.equal((await s.db.query('select * from wakppu_income.profiles where user_id=$1',[s.A])).rows.length,0);assert.deepEqual(await p.evaluate(()=>state.locked),[0]);
   saveFail=true;await p.evaluate(()=>{state.gold+=10;save();});await p.locator('#ranking-name').fill('저장실패');await p.locator('#ranking-join').tap();await p.waitForFunction(()=>document.getElementById('ranking-status').textContent.includes('변경 실패'));assert.equal((await s.db.query('select * from wakppu_income.profiles where user_id=$1',[s.A])).rows.length,0);saveFail=false;
   if(width===1280){
-   // 서버 리비전 충돌은 연속 부화도 중지하며 미전송 기록을 브라우저에 보관합니다.
+   // 충돌 시 연속 부화를 중지하고 미전송 백업 후 최신 서버 기록으로 자동 복구합니다.
    await p.evaluate(()=>document.getElementById('account-save').click());await p.waitForFunction(()=>document.getElementById('cloud-status').textContent==='계정 서버 저장 완료');
    const serverBefore=(await s.db.query('select state from public.game_saves where user_id=$1',[s.A])).rows[0].state;
    await s.db.query('update public.game_saves set revision=revision+1 where user_id=$1',[s.A]);
    await p.locator('.world-nav [data-menu="hatch-panel"]').tap();await p.locator('.auto-hatch summary').tap();await p.locator('#auto-count').selectOption('100');await p.locator('#auto-rarity').selectOption('5');await p.locator('#auto-start').tap();
-   await p.waitForFunction(()=>gamePaused&&document.getElementById('cloud-status').textContent.includes('다른 브라우저'));
-   assert.equal(await p.evaluate(()=>autoHatch),null);assert.equal(await p.evaluate(()=>!!localStorage.getItem('wakppu-v01:account-pending:11111111-1111-4111-8111-111111111111')),true);
+   await p.waitForFunction(()=>!gamePaused&&!autoHatch&&Object.keys(localStorage).some(k=>k.startsWith('wakppu-v01:account-backup:')));
+   assert.equal(await p.evaluate(()=>autoHatch),null);assert.equal(await p.evaluate(()=>Object.keys(localStorage).filter(k=>k.startsWith('wakppu-v01:account-backup:')).some(k=>JSON.parse(localStorage.getItem(k)).pets.length>3)),true);
    const serverAfter=(await s.db.query('select state from public.game_saves where user_id=$1',[s.A])).rows[0].state;assert.deepEqual(serverAfter,serverBefore);
-   await p.locator('#account-reload').tap();await p.waitForFunction(()=>!gamePaused);assert.equal(await p.evaluate(()=>autoHatch),null);await p.locator('#account-close').tap();
+   assert.deepEqual(await p.evaluate(()=>state.pets),serverBefore.pets);assert.equal(await p.evaluate(()=>autoHatch),null);
   }
   await p.evaluate(()=>closeMenu());await p.locator('#account-toggle').tap();await p.locator('#account-logout').tap();await p.waitForFunction(()=>!window.wakppuCloud.rankingReady()&&!gamePaused);await p.locator('#account-close').tap();await p.locator('.world-nav [data-menu="ranking-panel"]').tap();await p.waitForFunction(()=>!document.getElementById('ranking-refresh').disabled);assert.equal(await p.locator('#ranking-form').isVisible(),false);assert.equal(await p.locator('#ranking-guest').isVisible(),true);assert.equal(await p.locator('[data-me="true"]').count(),0);
   assert.deepEqual(errors,[]);await ctx.close();console.log(`PASS: ${width}×${height} 브라우저+PostgreSQL 랭킹 조회·참여·중복/통신/저장 실패·수익 갱신·복원·참여 취소·로그아웃·데이터 보존`);
